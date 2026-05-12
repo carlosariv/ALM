@@ -223,6 +223,7 @@ struct AstIfExpr : Ast {
     Ast *condition;
     Ast *then_expr;
     AstIfExpr *else_if;
+    Token token;
 
     AstIfExpr() {
         kind = Ast_IfExpr;

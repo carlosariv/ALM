@@ -45,11 +45,6 @@ AstProcType *parse_proc_type(Parser *P);
 AstStructType *parse_struct_type(Parser *P);
 
 
-AstIfExpr *parse_if_expr(Parser *P) {
-    return nullptr;
-}
-
-
 Operator unary_operator_from_token(TokenKind token) {
     switch (token) {
         default:
@@ -326,6 +321,44 @@ AstStructType *parse_struct_type(Parser *P) {
     return struct_type;
 }
 
+AstIfExpr *parse_if_expr(Parser *P) {
+    Token token = expect_token(P, Token_If);
+
+    Ast *condition = parse_expr(P);
+
+    Ast *then_expr = parse_expr(P);
+
+    AstIfExpr *if_expr = ast_new<AstIfExpr>();
+    if_expr->condition = condition;
+    if_expr->then_expr = then_expr;
+    if_expr->token = token;
+
+    AstIfExpr *prev_if = if_expr;
+
+    while (is_token(P, Token_Else)) {
+        Token e = expect_token(P, Token_Else);
+
+        condition = nullptr;
+
+        if (is_token(P, Token_If)) {
+            Token i = expect_token(P, Token_If);
+            condition = parse_expr(P);
+        }
+
+        then_expr = parse_expr(P);
+
+        AstIfExpr *elif = ast_new<AstIfExpr>();
+        elif->condition = condition;
+        elif->then_expr = then_expr;
+        elif->else_if = nullptr;
+
+        prev_if->else_if = elif;
+        prev_if = elif;
+    }
+
+    return if_expr;
+}
+
 AstBlockExpr *parse_block_expr(Parser *P) {
     Token open = expect_token(P, Token_OpenBrace);
 
@@ -461,7 +494,7 @@ Ast *parse_primary_expr(Parser *P, Ast *operand) {
                 Array<Ast*> arguments = parse_expr_list(P);
 
                 Token close = expect_token(P, Token_CloseParen);
-
+_
                 AstCallExpr *call = ast_new<AstCallExpr>();
                 call->arguments = arguments;
                 call->operand = operand;
