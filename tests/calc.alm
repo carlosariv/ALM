@@ -1,0 +1,25 @@
+
+TokenKind :: enum {
+    INTEGER,
+    FLOATING,
+}
+
+Token :: struct {
+    kind: TokenKind;
+}
+
+eval :: (text: string) {
+    
+}
+
+main :: () {
+    while true {
+        c := getchar();
+        if c == EOF {
+            break;
+        }
+
+        line := getline();
+        value := eval(line);
+    }
+}

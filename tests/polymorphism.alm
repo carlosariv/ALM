@@ -1,0 +1,36 @@
+A :: struct {
+    msg: string;
+    print_message :: (a: *A) #dispatch ---
+}
+
+B :: struct {
+    A;
+    print_message :: (b: *B) ---
+}
+
+C :: struct {
+    A;
+    print_message :: (c: *C) ---
+}
+
+print_message :: (a: *A) {
+    print("A " + a.msg);
+}
+
+print_message :: (b: *B) {
+    print("B " + b.msg);
+}
+
+print_message :: (c: *C) {
+    print("C " + c.msg);
+}
+
+main :: () {
+    a := new(A);
+    b := new(B);
+
+    print_message(a);
+    print_message(b);
+
+    print_message(cast(*A)b); // still calls print_message B
+}

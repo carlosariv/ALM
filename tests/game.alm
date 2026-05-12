@@ -1,0 +1,50 @@
+Vector3 :: struct {
+    x: f32;
+    y: f32;
+    z: f32;
+}
+
+EntityType :: enum {
+    None,
+    Guy,
+    Bow,
+}
+
+Entity :: struct {
+    type: Type;
+    position: Vector3;
+    velocity: Vector3;
+    acceleration: Vector3;
+
+    update :: (e: *Entity) #dispatch ---
+}
+
+Guy :: struct {
+    health: f32;
+    draw_angle: f32;
+}
+
+destroy :: (e: *Entity) {
+}
+
+update_guy :: (e: *Entity) {
+}
+
+main :: () {
+    e := new(Entity);
+
+    update(e); // missing implementation for update function
+
+    e.update = update_guy;
+    update(e);
+
+    destroy(e);
+
+    window := OS.create_window(0, 0, 100, 100, "windowname");
+
+    ch := f;
+
+    while (window.is_running) {
+        print('foo');
+    }
+}
