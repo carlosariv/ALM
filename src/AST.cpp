@@ -69,21 +69,21 @@ void ast_print(Ast *node) {
 
         case Ast_ProcLit: {
             AstProcLit *proc_lit = static_cast<AstProcLit*>(node);
-            ast_out("(proc (");
-            for (Ast *param : proc_lit->params) {
-                ast_print(param);
-            }
-            ast_out(")\n");
+            // ast_out("(proc (");
+            // for (Ast *param : proc_lit->params) {
+            //     ast_print(param);
+            // }
+            // ast_out(")\n");
 
-            if (proc_lit->return_type) {
-                ast_out("-> (");
-                ast_print(proc_lit->return_type);
-                ast_out(")");
-            }
-            tab_begin();
-            ast_print(proc_lit->body);
-            tab_end();
-            ast_out(")\n");
+            // if (proc_lit->return_type) {
+            //     ast_out("-> (");
+            //     ast_print(proc_lit->return_type);
+            //     ast_out(")");
+            // }
+            // tab_begin();
+            // ast_print(proc_lit->body);
+            // tab_end();
+            // ast_out(")\n");
             break;
         }
 
@@ -218,9 +218,6 @@ void ast_print(Ast *node) {
             break;
         }
 
-        case Ast_PointerType: {
-            break;
-        }
         case Ast_ArrayType: {
             break;
         }

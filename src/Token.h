@@ -60,6 +60,7 @@ enum TokenKind {
     Token_Ellipsis,
     Token_DotStar,
     Token_Arrow,
+    Token_UnInit,
 
     Token_Assign_Begin,
     Token_Assign,

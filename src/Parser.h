@@ -30,7 +30,8 @@ struct Parser {
     isize stream_index;
     u8 *stream;
 
-    int expr_level;
+    int expr_level = 0;
+    bool allow_type = false;
 };
 
 
@@ -142,6 +143,7 @@ AstProcLit *parse_proc_lit(Parser *P);
 AstProcType *parse_proc_type(Parser *P);
 AstStructType *parse_struct_type(Parser *P);
 
+Ast *parse_type(Parser *P);
 
 void init_global_parser();
 

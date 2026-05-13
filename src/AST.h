@@ -27,18 +27,18 @@ enum Operator {
     Operator_Mod,
 
     Operator_Equal,
+    Operator_NotEqual,
     Operator_Less,
     Operator_Greater,
     Operator_LessEqual,
     Operator_GreaterEqual,
     Operator_And,
     Operator_Or,
-
     Operator_LeftShift,
     Operator_RightShift,
-    Operator_Xor,
     Operator_BitwiseAnd,
     Operator_BitwiseOr,
+    Operator_Xor,
 
     Operator_COUNT
 };
@@ -75,8 +75,8 @@ enum AstKind {
     Ast_BlockExpr,
     Ast_CompoundLiteral,
     Ast_IfExpr,
+    Ast_StarExpr,
 
-    Ast_PointerType,
     Ast_ArrayType,
     Ast_StructType,
     Ast_UnionType,
@@ -112,16 +112,6 @@ struct AstName : Ast {
     Token token;
     AstName() {
         kind = Ast_Name;
-    }
-};
-
-struct AstProcLit : Ast {
-    Array<Ast*> params;
-    Ast *return_type;
-    Ast *body;
-
-    AstProcLit() {
-        kind = Ast_ProcLit;
     }
 };
 
@@ -249,6 +239,15 @@ struct AstBlockExpr : Ast {
     }
 };
 
+struct AstStarExpr : Ast {
+    Ast *elem;
+    Token token;
+
+    AstStarExpr() {
+        kind = Ast_StarExpr;
+    }
+};
+
 struct AstEmptyStmt : Ast {
     AstEmptyStmt() {
         kind = Ast_EmptyStmt;
@@ -273,16 +272,19 @@ struct AstAssign : Ast {
 
 struct AstReturn : Ast {
     Ast *expr;
+    Token token;
 
     AstReturn() {
         kind = Ast_Return;
     }
 };
 
-struct AstPointerType : Ast {
-    Ast *elem;
-    AstPointerType() {
-        kind = Ast_PointerType;
+struct AstProcType : Ast {
+    Array<Ast*> params;
+    Ast *return_type;
+
+    AstProcType() {
+        kind = Ast_ProcType;
     }
 };
 
@@ -290,6 +292,8 @@ struct AstArrayType : Ast {
     Ast *elem;
     Ast *size;
     bool dynamic;
+    Token open;
+    Token close;
 
     AstArrayType() {
         kind = Ast_ArrayType;
@@ -337,13 +341,16 @@ struct Enumerator : Ast {
     }
 };
 
-struct AstProcType : Ast {
-    Array<Ast*> params;
-    Ast *return_type;
-    AstProcType() {
-        kind = Ast_ProcType;
+struct AstProcLit : Ast {
+    AstProcType *proc_type;
+    Ast *body;
+
+    AstProcLit() {
+        kind = Ast_ProcLit;
     }
 };
+
+
 
 void ast_print(Ast *node);
 

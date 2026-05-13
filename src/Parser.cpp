@@ -12,7 +12,6 @@ std::unordered_map<String, TokenKind, StringHasher> keyword_map;
 String g_token_strings[Token_COUNT];
 String g_operator_strings[Operator_COUNT];
 
-
 template<typename... Args>
 void syntax_error(Parser *P, std::format_string<Args...> fmt, Args&&... args) {
     std::print("syntax error: {},{}: ", P->current_line, P->current_col);
@@ -27,13 +26,22 @@ String string_from_operator(Operator op) {
     return g_operator_strings[op];
 }
 
+void rewind(Parser *P, Token token) {
+    P->current_token = token;
+    P->current_line = token.end.line;
+    P->current_col = token.end.col;
+    P->stream_index = token.end.index;
+    P->stream = P->current_file->content.text + P->stream_index;
+}
+
+
+
 AstValueDecl *parse_decl(Parser *P);
 
 AstBlockExpr *parse_block_expr(Parser *P);
 Ast *parse_stmt(Parser *P);
 Ast *parse_simple_stmt(Parser *P);
 Ast *parse_expr_stmt(Parser *P);
-
 
 Array<Ast*> parse_expr_list(Parser *P);
 Array<Ast*> parse_name_list(Parser *P);
@@ -43,7 +51,6 @@ Ast *parse_type_defn(Parser *P);
 AstProcLit *parse_proc_lit(Parser *P);
 AstProcType *parse_proc_type(Parser *P);
 AstStructType *parse_struct_type(Parser *P);
-
 
 Operator unary_operator_from_token(TokenKind token) {
     switch (token) {
@@ -102,6 +109,7 @@ void init_global_parser() {
     g_operator_strings[Operator_Div] = STRZ("Div");
     g_operator_strings[Operator_Mod] = STRZ("Mod");
     g_operator_strings[Operator_Equal] = STRZ("Equal");
+    g_operator_strings[Operator_NotEqual] = STRZ("NotEqual");
     g_operator_strings[Operator_Less] = STRZ("Less");
     g_operator_strings[Operator_Greater] = STRZ("Greater");
     g_operator_strings[Operator_LessEqual] = STRZ("LessEqual");
@@ -162,6 +170,7 @@ void init_global_parser() {
     g_token_strings[Token_Ellipsis] = STRZ("..");
     g_token_strings[Token_DotStar] = STRZ(".*");
     g_token_strings[Token_Arrow] = STRZ("->");
+    g_token_strings[Token_UnInit] = STRZ("---");
     g_token_strings[Token_Assign_Begin] = STRZ("Assign_Begin");
     g_token_strings[Token_Assign] = STRZ("=");
     g_token_strings[Token_PlusAssign] = STRZ("+=");
@@ -376,6 +385,76 @@ AstBlockExpr *parse_block_expr(Parser *P) {
     return block;
 }
 
+AstStarExpr *parse_star_expr(Parser *P) {
+    Token token = expect_token(P, Token_Star);
+    Ast *elem = parse_type(P);
+    AstStarExpr *expr = ast_new<AstStarExpr>();
+    expr->elem = elem;
+    expr->token = token;
+    return expr;
+}
+
+Ast *parse_type(Parser *P) {
+
+    bool prev_allow_type = P->allow_type;
+
+    P->allow_type = true;
+    return parse_expr(P);
+
+    P->allow_type = prev_allow_type;
+}
+
+AstParam *parse_param(Parser *P) {
+    AstParam *param = ast_new<AstParam>();
+    return param;
+}
+
+AstProcType *parse_proc_type(Parser *P) {
+    Token open = expect_token(P, Token_OpenParen);
+
+    AstProcType *proc_type = ast_new<AstProcType>();
+
+    while (!is_token(P, Token_CloseParen)) {
+        AstParam *param = parse_param(P);
+        if (!param) break;
+
+        proc_type->params.add(param);
+
+        if (!match_token(P, Token_Comma)) break;
+    }
+
+    Token close = expect_token(P, Token_CloseParen);
+
+
+    Ast *ret_type = nullptr;
+    if (match_token(P, Token_Arrow)) {
+        ret_type = parse_type(P);
+    }
+
+    proc_type->return_type = ret_type;
+
+    return proc_type;
+}
+
+AstProcLit *ast_proc_lit(AstProcType *type, AstBlockExpr *body) {
+    AstProcLit *proc_lit = ast_new<AstProcLit>();
+    proc_lit->proc_type = type;
+    proc_lit->body = body;
+    return proc_lit;
+}
+
+AstParenExpr *parse_paren_expr(Parser *P) {
+    Token open = expect_token(P, Token_OpenParen);
+    Ast *elem = parse_expr(P);
+    Token close = expect_token(P, Token_CloseParen);
+
+    AstParenExpr *paren = ast_new<AstParenExpr>();
+    paren->expr = elem;
+    paren->open = open;
+    paren->close = close;
+    return paren;
+}
+
 Ast *parse_operand(Parser *P) {
     Token token = P->current_token;
     switch (token.kind) {
@@ -404,16 +483,63 @@ Ast *parse_operand(Parser *P) {
             return expr;
         }
 
-        case Token_OpenParen: {
-            Token open = next_token(P);
-            Ast *elem = parse_expr(P);
-            Token close = expect_token(P, Token_CloseParen);
+        case Token_Star:
+            return parse_star_expr(P);
 
-            AstParenExpr *paren = ast_new<AstParenExpr>();
-            paren->expr = elem;
-            paren->open = open;
-            paren->close = close;
-            return paren;
+        case Token_OpenBracket: {
+            Token open = expect_token(P, Token_OpenBracket);
+
+            Ast *size = parse_expr(P);
+
+            Token close = expect_token(P, Token_CloseBracket);
+
+            Ast *elem = parse_type(P);
+
+            AstArrayType *type = ast_new<AstArrayType>();
+            type->size = size;
+            type->elem = elem;
+            type->open = open;
+            type->close = close;
+            return type;
+        }
+
+        case Token_OpenParen: {
+            if (P->allow_type) {
+                return parse_proc_type(P);
+            }
+
+            Token open = expect_token(P, Token_OpenParen);
+            bool is_type = false;
+
+            if (is_token(P, Token_CloseParen)) {
+                is_type = true;
+                rewind(P, open);
+            }
+
+            if (!is_type) {
+                Ast *expr = parse_expr(P);
+                if (is_token(P, Token_Colon)) {
+                    is_type = true;
+                }
+                rewind(P, open);
+            }
+
+            AstProcType *proc_type = nullptr;
+
+            if (is_type) {
+                proc_type = parse_proc_type(P);
+
+                if (is_token(P, Token_OpenBrace)) {
+                    AstBlockExpr *body = parse_block_expr(P);
+                    return ast_proc_lit(proc_type, body);
+                } else if (is_token(P, Token_UnInit)) {
+                    return ast_proc_lit(proc_type, nullptr);
+                }
+
+                return proc_type;
+            }
+
+            return parse_paren_expr(P);
         }
 
         case Token_OpenBrace:
@@ -494,7 +620,7 @@ Ast *parse_primary_expr(Parser *P, Ast *operand) {
                 Array<Ast*> arguments = parse_expr_list(P);
 
                 Token close = expect_token(P, Token_CloseParen);
-_
+
                 AstCallExpr *call = ast_new<AstCallExpr>();
                 call->arguments = arguments;
                 call->operand = operand;
@@ -536,11 +662,102 @@ Ast *parse_unary_expr(Parser *P) {
     }
 }
 
+Operator get_binary_op(TokenKind token) {
+    switch (token) {
+        default:
+            return Operator_Nil;
+        case Token_Plus:
+            return Operator_Add;
+        case Token_Minus:
+            return Operator_Sub;
+        case Token_Star:
+            return Operator_Mult;
+        case Token_Slash:
+            return Operator_Div;
+        case Token_Percent:
+            return Operator_Mod;
+        case Token_Equal:
+            return Operator_Equal;
+        case Token_NotEqual:
+            return Operator_NotEqual;
+        case Token_Less:
+            return Operator_Less;
+        case Token_Greater:
+            return Operator_Greater;
+        case Token_LessEqual:
+            return Operator_LessEqual;
+        case Token_GreaterEqual:
+            return Operator_GreaterEqual;
+        case Token_And:
+            return Operator_And;
+        case Token_Or:
+            return Operator_Or;
+        case Token_Bar:
+            return Operator_BitwiseOr;
+        case Token_Ampersand:
+            return Operator_BitwiseAnd;
+        case Token_LeftShift:
+            return Operator_LeftShift;
+        case Token_RightShift:
+            return Operator_RightShift;
+    }
+}
+
+int get_op_prec(Operator op) {
+    switch (op) {
+        default:
+            return -1;
+
+        case Operator_Mult:
+        case Operator_Div:
+        case Operator_Mod:
+            return 11000;
+
+        case Operator_Add:
+        case Operator_Sub:
+            return 10000;
+
+        case Operator_Less:
+        case Operator_Greater:
+        case Operator_LessEqual:
+        case Operator_GreaterEqual:
+            return 9000;
+
+        case Operator_Equal:
+        case Operator_NotEqual:
+            return 8000;
+
+        case Operator_BitwiseAnd:
+            return 7000;
+        case Operator_Xor:
+            return 6000;
+        case Operator_BitwiseOr:
+            return 5000;
+
+        case Operator_And:
+            return 4000;
+        case Operator_Or:
+            return 3000;
+        case Operator_LeftShift:
+        case Operator_RightShift:
+            return 2000;
+    }
+}
+
+
 Ast *parse_binary_expr(Parser *P, Ast *lhs, int current_prec) {
-    return lhs;
     for (;;) {
         Token op_token = get_token(P);
+        Operator op = get_binary_op(op_token.kind);
+
+        int op_prec = get_op_prec(op);
+
+        if (op_prec < current_prec) {
+            return lhs;
+        }
     }
+
+    return lhs;
 }
 
 Ast *parse_expr(Parser *P) {
@@ -562,9 +779,9 @@ Ast *parse_simple_stmt(Parser *P) {
 Ast *parse_stmt(Parser *P) {
     Ast *stmt = nullptr;
     switch (peek_token(P)) {
-    default:
-        stmt = parse_simple_stmt(P);
-        break;
+        default:
+            stmt = parse_simple_stmt(P);
+            break;
 
         case Token_Else:
             syntax_error(P, "illegal else without matching if");
@@ -574,6 +791,16 @@ Ast *parse_stmt(Parser *P) {
         case Token_Do:
         case Token_For:
             break;
+
+        case Token_Return: {
+            Token token = expect_token(P, Token_Return);
+            AstReturn *ret = ast_new<AstReturn>();
+            Ast *expr = parse_expr(P);
+            ret->expr = expr;
+            ret->token = token;
+            stmt = ret;
+            break;
+        }
     }
 
     return stmt;
@@ -646,6 +873,12 @@ scan_begin:
             } else if (peek_char(P) == '=') {
                 advance_char(P);
                 tok.kind = Token_MinusAssign;
+            } else if (peek_char(P) == '-' && peek_next_char(P) == '-') {
+                advance_char(P);
+                advance_char(P);
+                tok.kind = Token_UnInit;
+            } else {
+                tok.kind = Token_Minus;
             }
             break;
 
