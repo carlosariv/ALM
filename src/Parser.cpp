@@ -34,8 +34,6 @@ void rewind(Parser *P, Token token) {
     P->stream = P->current_file->content.text + P->stream_index;
 }
 
-
-
 AstValueDecl *parse_decl(Parser *P);
 
 AstBlockExpr *parse_block_expr(Parser *P);
@@ -90,6 +88,9 @@ void init_global_parser() {
     set_keyword(STRZ("while"), Token_While);
     set_keyword(STRZ("for"), Token_For);
     set_keyword(STRZ("do"), Token_Do);
+    set_keyword(STRZ("break"), Token_Break);
+    set_keyword(STRZ("continue"), Token_Continue);
+    set_keyword(STRZ("fallthrough"), Token_Fallthrough);
     set_keyword(STRZ("if"), Token_If);
     set_keyword(STRZ("else"), Token_Else);
     set_keyword(STRZ("then"), Token_Then);
@@ -190,6 +191,9 @@ void init_global_parser() {
     g_token_strings[Token_While] = STRZ("while");
     g_token_strings[Token_For] = STRZ("for");
     g_token_strings[Token_Do] = STRZ("do");
+    g_token_strings[Token_Break] = STRZ("break");
+    g_token_strings[Token_Continue] = STRZ("continue");
+    g_token_strings[Token_Fallthrough] = STRZ("fallthrough");
     g_token_strings[Token_If] = STRZ("if");
     g_token_strings[Token_Else] = STRZ("else");
     g_token_strings[Token_Then] = STRZ("then");
@@ -787,10 +791,72 @@ Ast *parse_stmt(Parser *P) {
             syntax_error(P, "illegal else without matching if");
             break;
 
-        case Token_While:
-        case Token_Do:
-        case Token_For:
+        case Token_While: {
+            Token token = expect_token(P, Token_While);
+
+            Ast *condition = parse_expr(P);
+
+            AstBlockExpr *block = parse_block_expr(P);
+
+            AstWhile *while_stmt = ast_new<AstWhile>();
+            while_stmt->condition = condition;
+            while_stmt->block = block;
+            stmt = while_stmt;
             break;
+        }
+
+        case Token_Do: {
+            Token token = expect_token(P, Token_Do);
+
+            AstBlockExpr *block = parse_block_expr(P);
+
+            expect_token(P, Token_While);
+
+            Ast *condition = parse_expr(P);
+
+            AstDo *do_stmt = ast_new<AstDo>();
+            do_stmt->condition = condition;
+            do_stmt->block = block;
+            stmt = do_stmt;
+            break;
+        }
+
+        case Token_For: {
+            Token token = expect_token(P, Token_For);
+            Ast *condition = parse_expr(P);
+            AstBlockExpr *block = parse_block_expr(P);
+
+            AstFor *for_stmt = ast_new<AstFor>();
+            for_stmt->condition = condition;
+            for_stmt->block = block;
+            for_stmt->token = token;
+            stmt = for_stmt;
+            break;
+        }
+
+        case Token_Break: {
+            Token token = expect_token(P, Token_Break);
+            AstBreak *break_stmt = ast_new<AstBreak>();
+            break_stmt->token = token;
+            stmt = break_stmt;
+            break;
+        }
+
+        case Token_Continue: {
+            Token token = expect_token(P, Token_Continue);
+            AstContinue *continue_stmt = ast_new<AstContinue>();
+            continue_stmt->token = token;
+            stmt = continue_stmt;
+            break;
+        }
+
+        case Token_Fallthrough: {
+            Token token = expect_token(P, Token_Fallthrough);
+            AstFallthrough *fallthrough_stmt = ast_new<AstFallthrough>();
+            fallthrough_stmt->token = token;
+            stmt = fallthrough_stmt;
+            break;
+        }
 
         case Token_Return: {
             Token token = expect_token(P, Token_Return);

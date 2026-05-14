@@ -61,9 +61,14 @@ enum AstKind {
     Ast_EmptyStmt,
     Ast_ExprStmt,
     Ast_Assign,
-    Ast_Return,
+    Ast_Do,
     Ast_While,
     Ast_For,
+
+    Ast_Break,
+    Ast_Continue,
+    Ast_Fallthrough,
+    Ast_Return,
 
     Ast_LiteralExpr,
     Ast_UnaryExpr,
@@ -269,6 +274,61 @@ struct AstAssign : Ast {
         kind = Ast_Assign;
     }
 };
+
+struct AstWhile : Ast {
+    Ast *condition;
+    AstBlockExpr *block;
+    Token token;
+
+    AstWhile() {
+        kind = Ast_While;
+    }
+};
+
+struct AstDo : Ast {
+    Ast *condition;
+    AstBlockExpr *block;
+    Token token;
+
+    AstDo() {
+        kind = Ast_Do;
+    }
+};
+
+struct AstFor : Ast {
+    Ast *condition;
+    AstBlockExpr *block;
+    Token token;
+
+    AstFor() {
+        kind = Ast_For;
+    }
+};
+
+struct AstContinue : Ast {
+    Token token;
+
+    AstContinue() {
+        kind = Ast_Continue;
+    }
+};
+
+struct AstBreak : Ast {
+    Token token;
+
+    AstBreak() {
+        kind = Ast_Break;
+    }
+};
+
+struct AstFallthrough : Ast {
+    Token token;
+
+    AstFallthrough() {
+        kind = Ast_Fallthrough;
+    }
+};
+
 
 struct AstReturn : Ast {
     Ast *expr;
