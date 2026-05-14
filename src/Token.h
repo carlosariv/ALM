@@ -1,99 +1,129 @@
 #pragma once
 
-#include <string>
-#include <string_view>
-
 #include "BaseTypes.h"
 #include "String.h"
 
 struct Atom;
 
+#define TOKEN_LIST() \
+X(Token_Unknown, "Unknown") \
+X(Token_EndOfFile, "EndOfFile") \
+X(Token_Name, "Name") \
+X(Token_Integer, "Integer") \
+X(Token_Floating, "Floating") \
+X(Token_String, "String") \
+X(Token_Ampersand, "&") \
+X(Token_At, "@") \
+X(Token_Bang, "!") \
+X(Token_Bar, "|") \
+X(Token_Caret, "^") \
+X(Token_Dollar, "$") \
+X(Token_Hash, "#") \
+X(Token_Plus, "_") \
+X(Token_Minus, "-") \
+X(Token_Star, "*") \
+X(Token_Percent, "%") \
+X(Token_Slash, "/") \
+X(Token_Tilde, "`") \
+X(Token_Squiggle, "~") \
+X(Token_Quote, "\"") \
+X(Token_OpenParen, "(") \
+X(Token_CloseParen, ")") \
+X(Token_OpenBrace, "{") \
+X(Token_CloseBrace, "}") \
+X(Token_OpenBracket, "[") \
+X(Token_CloseBracket, "]") \
+X(Token_Colon, ":") \
+X(Token_Semicolon, ";") \
+X(Token_Equal, "==") \
+X(Token_NotEqual, "!=") \
+X(Token_Less, "<") \
+X(Token_Greater, ">") \
+X(Token_LessEqual, "<=") \
+X(Token_GreaterEqual, ">=") \
+X(Token_LeftShift, "<<") \
+X(Token_RightShift, ">>") \
+X(Token_And, "&&") \
+X(Token_Or, "||") \
+X(Token_Comma, ",") \
+X(Token_Dot, ".") \
+X(Token_Ellipsis, "..") \
+X(Token_DotStar, ".*") \
+X(Token_Arrow, "->") \
+X(Token_UnInit, "---") \
+X(Token_Assign_Begin, "Assign_Begin") \
+X(Token_Assign, "=") \
+X(Token_PlusAssign, "+=") \
+X(Token_MinusAssign, "-=") \
+X(Token_MulAssign, "*=") \
+X(Token_DivAssign, "/=") \
+X(Token_AndAssign, "&=") \
+X(Token_OrAssign, "|=") \
+X(Token_XorAssign, "^=") \
+X(Token_ModAssign, "%=") \
+X(Token_Assign_End, "Assign_End") \
+X(Token_KeywordBegin, "KeywordBegin") \
+X(Token_Struct, "struct") \
+X(Token_Union, "union") \
+X(Token_Enum, "enum") \
+X(Token_Using, "using") \
+X(Token_While, "while") \
+X(Token_For, "for") \
+X(Token_Do, "do") \
+X(Token_Break, "break") \
+X(Token_Continue, "continue") \
+X(Token_Fallthrough, "fallthrough") \
+X(Token_If, "if") \
+X(Token_Else, "else") \
+X(Token_Then, "then") \
+X(Token_Case, "case") \
+X(Token_Default, "default") \
+X(Token_Return, "return") \
+X(Token_KeywordEnd, "KeywordEnd") \
+
+
+#define OPERATOR_LIST() \
+X(Operator_Nil, "Nil") \
+X(Operator_UnaryPlus, "UnaryPlus") \
+X(Operator_Not, "Not") \
+X(Operator_Negate, "Negate") \
+X(Operator_AddressOf, "AddressOf") \
+X(Operator_IndexOf, "IndexOf") \
+X(Operator_Deref, "Deref") \
+X(Operator_Add, "Add") \
+X(Operator_Sub, "Sub") \
+X(Operator_Mult, "Mult") \
+X(Operator_Div, "Div") \
+X(Operator_Mod, "Mod") \
+X(Operator_Equal, "Equal") \
+X(Operator_NotEqual, "NotEqual") \
+X(Operator_Less, "Less") \
+X(Operator_Greater, "Greater") \
+X(Operator_LessEqual, "LessEqual") \
+X(Operator_GreaterEqual, "GreaterEqual") \
+X(Operator_LeftShift, "LeftShift") \
+X(Operator_RightShift, "RightShift") \
+X(Operator_Xor, "Xor") \
+X(Operator_BitwiseAnd, "BitwiseAnd") \
+X(Operator_BitwiseOr, "BitwiseOr") \
+X(Operator_And, "And") \
+X(Operator_Or, "Or") \
+X(Operator_Cast, "Cast") \
+
+
+#define X(K,S) K,
 enum TokenKind {
-    Token_Unknown,
-    Token_EndOfFile,
-
-    Token_Name,
-    Token_Integer,
-    Token_Floating,
-    Token_String,
-
-    Token_Ampersand,
-    Token_At,
-    Token_Bang,
-    Token_Bar,
-    Token_Caret,
-    Token_Dollar,
-    Token_Hash,
-    Token_Plus,
-    Token_Minus,
-    Token_Star,
-    Token_Percent,
-    Token_Slash,
-
-    Token_Tilde,
-    Token_Squiggle,
-    Token_Quote,
-
-    Token_OpenParen,
-    Token_CloseParen,
-    Token_OpenBrace,
-    Token_CloseBrace,
-    Token_OpenBracket,
-    Token_CloseBracket,
-    Token_Colon,
-    Token_Semicolon,
-
-    Token_Equal,
-    Token_NotEqual,
-    Token_Less,
-    Token_Greater,
-    Token_LessEqual,
-    Token_GreaterEqual,
-
-    Token_LeftShift,
-    Token_RightShift,
-    Token_And,
-    Token_Or,
-
-    Token_Comma,
-    Token_Dot,
-    Token_Ellipsis,
-    Token_DotStar,
-    Token_Arrow,
-    Token_UnInit,
-
-    Token_Assign_Begin,
-    Token_Assign,
-    Token_PlusAssign,
-    Token_MinusAssign,
-    Token_MulAssign,
-    Token_DivAssign,
-    Token_AndAssign,
-    Token_OrAssign,
-    Token_XorAssign,
-    Token_ModAssign,
-    Token_Assign_End,
-
-    Token_KeywordBegin,
-    Token_Struct,
-    Token_Union,
-    Token_Enum,
-    Token_Using,
-    Token_While,
-    Token_For,
-    Token_Do,
-    Token_Break,
-    Token_Continue,
-    Token_Fallthrough,
-    Token_If,
-    Token_Else,
-    Token_Then,
-    Token_Ifcase,
-    Token_Return,
-    Token_KeywordEnd,
-
+    TOKEN_LIST()
     Token_COUNT
 };
+#undef X
+
+#define X(K, S) K,
+enum Operator {
+    OPERATOR_LIST()
+    Operator_COUNT
+};
+#undef X
 
 struct SourcePos {
     i64 line = 0;
@@ -118,29 +148,4 @@ struct Token {
     Token() {
         integer_value = 0;
     }
-
-    // Token& operator=(const Token& other) {
-    //     kind = other.kind;
-    //     string = other.string;
-    //     start = other.start;
-    //     end = other.end;
-    //     switch (kind) {
-    //         case TOKEN_INTEGER:
-    //             integer_value = other.integer_value;
-    //             break;
-    //         case TOKEN_FLOAT:
-    //             float_value = other.float_value;
-    //             break;
-    //         case TOKEN_STRING:
-    //             string_value = other.string_value;
-    //             break;
-    //         case TOKEN_NAME:
-    //             name = other.name;
-    //             break;
-    //     }
-    //     return (Token&)other;
-    // }
-    // Token(const Token &other) {
-    //     *this = other;
-    // }
 };
