@@ -12,8 +12,6 @@
 #include "Token.h"
 #include "AST.h"
 
-struct Ast;
-
 struct SourceFile {
     String path;
     String filename;
@@ -32,22 +30,16 @@ struct Parser {
 
     int expr_level = 0;
     bool allow_type = false;
+
+
+    Ast *control_target = nullptr;
+    AstBlockExpr *block = nullptr;
 };
 
 
 Token get_token(Parser *P);
 Token next_token(Parser *P);
 
-
-template<typename... Args>
-void report_parser_error(Parser *P, std::format_string<Args...> fmt, Args&&... args) {
-    // Optional: Add a prefix
-    std::print(std::cerr, "LOG: "); 
-
-    // Forward the original format string and arguments to std::println
-    // using perfect forwarding (std::forward) to preserve argument types.
-    std::println(std::cerr, fmt.get(), std::forward<Args>(args)...); 
-}
 
 inline TokenKind peek_token(Parser *P) {
     return P->current_token.kind;
@@ -99,7 +91,10 @@ inline bool match_char(Parser *P, char ch) {
 
 inline void advance_line(Parser *P) {
     while (!end_of_file(P)) {
-        if (peek_char(P) == '\n') {
+        if (peek_char(P) == '\r' && peek_next_char(P) == '\n') {
+            advance_char(P);
+            break;
+        } else if (peek_char(P) == '\n') {
             advance_char(P);
             break;
         }

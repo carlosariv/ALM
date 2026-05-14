@@ -39,7 +39,6 @@ int main(int argc, char **argv) {
     opts.process_command_line_args(std::span(argv + 1, argc - 1));
 
     atomizer_init();
-    init_global_parser();
 
     std::string foo = "one two";
 

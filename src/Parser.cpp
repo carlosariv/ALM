@@ -7,16 +7,17 @@
 #include "Token.h"
 #include "Parser.h"
 
-std::unordered_map<String, TokenKind, StringHasher> keyword_map;
+#define X(K,S) STRZ(S),
+String g_token_strings[Token_COUNT] = {
+    TOKEN_LIST()
+};
+#undef X
 
-String g_token_strings[Token_COUNT];
-String g_operator_strings[Operator_COUNT];
-
-template<typename... Args>
-void syntax_error(Parser *P, std::format_string<Args...> fmt, Args&&... args) {
-    std::print("syntax error: {},{}: ", P->current_line, P->current_col);
-    std::println(fmt, std::forward<Args>(args)...);
-}
+#define X(K,S) STRZ(S),
+String g_operator_strings[Operator_COUNT] = {
+    OPERATOR_LIST()
+};
+#undef X
 
 String string_from_token(TokenKind token) {
     return g_token_strings[token];
@@ -24,6 +25,28 @@ String string_from_token(TokenKind token) {
 
 String string_from_operator(Operator op) {
     return g_operator_strings[op];
+}
+
+std::unordered_map<String, TokenKind, StringHasher> keyword_map = [] {
+    std::unordered_map<String, TokenKind, StringHasher> m;
+    for (int i = Token_KeywordBegin + 1; i < Token_KeywordEnd; i++) {
+        TokenKind token = (TokenKind)i;
+        String string = string_from_token(token);
+        m.insert({string, token});
+    }
+    return m;
+}();
+
+template<typename... Args>
+void syntax_error(Parser *P, std::format_string<Args...> fmt, Args&&... args) {
+    std::print("syntax error: {},{}: ", P->current_line, P->current_col);
+    std::println(fmt, std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+void report_parser_error(Parser *P, std::format_string<Args...> fmt, Args&&... args) {
+    std::print("syntax error: {},{}: ", P->current_line, P->current_col);
+    std::println(fmt, std::forward<Args>(args)...);
 }
 
 void rewind(Parser *P, Token token) {
@@ -76,135 +99,6 @@ int to_digit(char c) {
     }
 }
 
-void set_keyword(String string, TokenKind token) {
-    keyword_map.insert({string, token});
-}
-
-void init_global_parser() {
-    set_keyword(STRZ("struct"), Token_Struct);
-    set_keyword(STRZ("union"), Token_Union);
-    set_keyword(STRZ("enum"), Token_Enum);
-    set_keyword(STRZ("using"), Token_Using);
-    set_keyword(STRZ("while"), Token_While);
-    set_keyword(STRZ("for"), Token_For);
-    set_keyword(STRZ("do"), Token_Do);
-    set_keyword(STRZ("break"), Token_Break);
-    set_keyword(STRZ("continue"), Token_Continue);
-    set_keyword(STRZ("fallthrough"), Token_Fallthrough);
-    set_keyword(STRZ("if"), Token_If);
-    set_keyword(STRZ("else"), Token_Else);
-    set_keyword(STRZ("then"), Token_Then);
-    set_keyword(STRZ("ifcase"), Token_Ifcase);
-    set_keyword(STRZ("return"), Token_Return);
-
-    g_operator_strings[Operator_Nil] = STRZ("Nil");
-    g_operator_strings[Operator_UnaryPlus] = STRZ("UnaryPlus");
-    g_operator_strings[Operator_Not] = STRZ("Not");
-    g_operator_strings[Operator_Negate] = STRZ("Negate");
-    g_operator_strings[Operator_AddressOf] = STRZ("AddressOf");
-    g_operator_strings[Operator_IndexOf] = STRZ("IndexOf");
-    g_operator_strings[Operator_Deref] = STRZ("Deref");
-    g_operator_strings[Operator_Add] = STRZ("Add");
-    g_operator_strings[Operator_Sub] = STRZ("Sub");
-    g_operator_strings[Operator_Mult] = STRZ("Mult");
-    g_operator_strings[Operator_Div] = STRZ("Div");
-    g_operator_strings[Operator_Mod] = STRZ("Mod");
-    g_operator_strings[Operator_Equal] = STRZ("Equal");
-    g_operator_strings[Operator_NotEqual] = STRZ("NotEqual");
-    g_operator_strings[Operator_Less] = STRZ("Less");
-    g_operator_strings[Operator_Greater] = STRZ("Greater");
-    g_operator_strings[Operator_LessEqual] = STRZ("LessEqual");
-    g_operator_strings[Operator_GreaterEqual] = STRZ("GreaterEqual");
-    g_operator_strings[Operator_LeftShift] = STRZ("LeftShift");
-    g_operator_strings[Operator_RightShift] = STRZ("RightShift");
-    g_operator_strings[Operator_Xor] = STRZ("Xor");
-    g_operator_strings[Operator_BitwiseAnd] = STRZ("BitwiseAnd");
-    g_operator_strings[Operator_BitwiseOr] = STRZ("BitwiseOr");
-    g_operator_strings[Operator_And] = STRZ("And");
-    g_operator_strings[Operator_Or] = STRZ("Or");
-    g_operator_strings[Operator_Cast] = STRZ("Cast");
-
-    for (int i = Operator_Nil; i < Operator_COUNT; i++) {
-        assert(g_operator_strings[i].len != 0);
-    }
-
-    g_token_strings[Token_Unknown] = STRZ("Unknown");
-    g_token_strings[Token_EndOfFile] = STRZ("EndOfFile");
-    g_token_strings[Token_Name] = STRZ("Name");
-    g_token_strings[Token_Integer] = STRZ("Integer");
-    g_token_strings[Token_Floating] = STRZ("Floating");
-    g_token_strings[Token_String] = STRZ("String");
-    g_token_strings[Token_Ampersand] = STRZ("&");
-    g_token_strings[Token_At] = STRZ("@");
-    g_token_strings[Token_Bang] = STRZ("!");
-    g_token_strings[Token_Bar] = STRZ("|");
-    g_token_strings[Token_Caret] = STRZ("^");
-    g_token_strings[Token_Dollar] = STRZ("$");
-    g_token_strings[Token_Hash] = STRZ("#");
-    g_token_strings[Token_Plus] = STRZ("_");
-    g_token_strings[Token_Minus] = STRZ("-");
-    g_token_strings[Token_Star] = STRZ("*");
-    g_token_strings[Token_Percent] = STRZ("%");
-    g_token_strings[Token_Slash] = STRZ("/");
-    g_token_strings[Token_Tilde] = STRZ("`");
-    g_token_strings[Token_Squiggle] = STRZ("~");
-    g_token_strings[Token_Quote] = STRZ("\"");
-    g_token_strings[Token_OpenParen] = STRZ("(");
-    g_token_strings[Token_CloseParen] = STRZ(")");
-    g_token_strings[Token_OpenBrace] = STRZ("{");
-    g_token_strings[Token_CloseBrace] = STRZ("}");
-    g_token_strings[Token_OpenBracket] = STRZ("[");
-    g_token_strings[Token_CloseBracket] = STRZ("]");
-    g_token_strings[Token_Colon] = STRZ(":");
-    g_token_strings[Token_Semicolon] = STRZ(";");
-    g_token_strings[Token_Equal] = STRZ("==");
-    g_token_strings[Token_Less] = STRZ("<");
-    g_token_strings[Token_Greater] = STRZ(">");
-    g_token_strings[Token_LessEqual] = STRZ("<=");
-    g_token_strings[Token_GreaterEqual] = STRZ(">=");
-    g_token_strings[Token_LeftShift] = STRZ("<<");
-    g_token_strings[Token_RightShift] = STRZ(">>");
-    g_token_strings[Token_And] = STRZ("&&");
-    g_token_strings[Token_Or] = STRZ("||");
-    g_token_strings[Token_Comma] = STRZ(",");
-    g_token_strings[Token_Dot] = STRZ(".");
-    g_token_strings[Token_Ellipsis] = STRZ("..");
-    g_token_strings[Token_DotStar] = STRZ(".*");
-    g_token_strings[Token_Arrow] = STRZ("->");
-    g_token_strings[Token_UnInit] = STRZ("---");
-    g_token_strings[Token_Assign_Begin] = STRZ("Assign_Begin");
-    g_token_strings[Token_Assign] = STRZ("=");
-    g_token_strings[Token_PlusAssign] = STRZ("+=");
-    g_token_strings[Token_MinusAssign] = STRZ("-=");
-    g_token_strings[Token_MulAssign] = STRZ("*=");
-    g_token_strings[Token_DivAssign] = STRZ("/=");
-    g_token_strings[Token_AndAssign] = STRZ("&=");
-    g_token_strings[Token_OrAssign] = STRZ("|=");
-    g_token_strings[Token_XorAssign] = STRZ("^=");
-    g_token_strings[Token_ModAssign] = STRZ("%=");
-    g_token_strings[Token_Assign_End] = STRZ("Assign_End");
-    g_token_strings[Token_KeywordBegin] = STRZ("KeywordBegin");
-    g_token_strings[Token_Struct] = STRZ("struct");
-    g_token_strings[Token_Union] = STRZ("union");
-    g_token_strings[Token_Enum] = STRZ("enum");
-    g_token_strings[Token_Using] = STRZ("using");
-    g_token_strings[Token_While] = STRZ("while");
-    g_token_strings[Token_For] = STRZ("for");
-    g_token_strings[Token_Do] = STRZ("do");
-    g_token_strings[Token_Break] = STRZ("break");
-    g_token_strings[Token_Continue] = STRZ("continue");
-    g_token_strings[Token_Fallthrough] = STRZ("fallthrough");
-    g_token_strings[Token_If] = STRZ("if");
-    g_token_strings[Token_Else] = STRZ("else");
-    g_token_strings[Token_Then] = STRZ("then");
-    g_token_strings[Token_Ifcase] = STRZ("ifcase");
-    g_token_strings[Token_Return] = STRZ("return");
-    g_token_strings[Token_KeywordEnd] = STRZ("KeywordEnd");
-
-    for (int i = Token_Unknown; i < Token_COUNT; i++) {
-        assert(g_token_strings[i].len != 0);
-    }
-}
 
 Token get_token(Parser *P) {
     return P->current_token;
@@ -337,11 +231,17 @@ AstStructType *parse_struct_type(Parser *P) {
 AstIfExpr *parse_if_expr(Parser *P) {
     Token token = expect_token(P, Token_If);
 
+    AstIfExpr *if_expr = ast_new<AstIfExpr>();
+
+    Ast *prev_control = P->control_target;
+    P->control_target = if_expr;
+
     Ast *condition = parse_expr(P);
+
+    P->control_target = prev_control;
 
     Ast *then_expr = parse_expr(P);
 
-    AstIfExpr *if_expr = ast_new<AstIfExpr>();
     if_expr->condition = condition;
     if_expr->then_expr = then_expr;
     if_expr->token = token;
@@ -377,12 +277,22 @@ AstBlockExpr *parse_block_expr(Parser *P) {
 
     AstBlockExpr *block = ast_new<AstBlockExpr>();
 
+    AstBlockExpr *prev_block = P->block;
+
+    P->block = block;
+
     while (!is_token(P, Token_CloseBrace)) {
         Ast *stmt = parse_stmt(P);
         if (!stmt) break;
 
+        if (stmt->kind == Ast_Case) {
+            
+        }
+
         block->statements.add(stmt);
     }
+
+    P->block = prev_block;
 
     Token close = expect_token(P, Token_CloseBrace);
 
@@ -558,6 +468,7 @@ Ast *parse_operand(Parser *P) {
         case Token_Enum:
             return parse_enum_type(P);
     }
+
     return nullptr;
 }
 
@@ -571,7 +482,7 @@ Array<Ast*> parse_expr_list(Parser *P) {
 
         list.add(expr);
 
-        if (match_token(P, Token_Comma)) {
+        if (!match_token(P, Token_Comma)) {
             break;
         }
     }
@@ -748,6 +659,14 @@ int get_op_prec(Operator op) {
     }
 }
 
+AstBinaryExpr *ast_binary_expr(Token token, Operator op, Ast *lhs, Ast *rhs) {
+    AstBinaryExpr *expr = ast_new<AstBinaryExpr>();
+    expr->token = token;
+    expr->op = op;
+    expr->lhs = lhs;
+    expr->rhs = rhs;
+    return expr;
+}
 
 Ast *parse_binary_expr(Parser *P, Ast *lhs, int current_prec) {
     for (;;) {
@@ -759,6 +678,29 @@ Ast *parse_binary_expr(Parser *P, Ast *lhs, int current_prec) {
         if (op_prec < current_prec) {
             return lhs;
         }
+
+        next_token(P);
+
+        Ast *rhs = parse_unary_expr(P);
+        if (rhs == nullptr) {
+            report_parser_error(P, "expected expression after {}", string_from_operator(op));
+            return nullptr;
+        }
+
+        Token next_tok = get_token(P);
+        Operator next_op = get_binary_op(next_tok.kind);
+        int next_prec = get_op_prec(next_op);
+
+        if (op_prec < next_prec) {
+            rhs = parse_binary_expr(P, rhs, op_prec + 1);
+
+            if (rhs == nullptr) {
+                rhs = ast_binary_expr(op_token, op, lhs, nullptr);
+                return rhs;
+            }
+        }
+
+        lhs = ast_binary_expr(op_token, op, lhs, rhs);
     }
 
     return lhs;
@@ -774,33 +716,75 @@ Ast *parse_simple_stmt(Parser *P) {
 
     if (lhs.count == 0) return nullptr;
 
-    if (is_token(P, Token_Colon)) {
-    }
+    Array<Ast*> rhs;
+    if (match_token(P, Token_Colon)) {
+        Ast *type_defn = nullptr;
+        bool is_constant = false;
 
-    return lhs[0];
+        if (match_token(P, Token_Colon)) {
+            // compile-time constant
+            rhs = parse_expr_list(P);
+            is_constant = true;
+        } else {
+            // non compile-time constant
+            type_defn = parse_type(P);
+
+            if (match_token(P, Token_Assign)) {
+                rhs = parse_expr_list(P);
+            }
+        }
+
+        AstValueDecl *vd = ast_new<AstValueDecl>();
+        vd->lhs = lhs;
+        vd->rhs = rhs;
+        vd->type_defn = type_defn;
+        vd->is_constant = is_constant;
+        return vd;
+    } else if (match_token(P, Token_Assign)) {
+        rhs = parse_expr_list(P);
+        AstAssign *assign = ast_new<AstAssign>();
+        assign->lhs = lhs;
+        assign->rhs = rhs;
+        return assign;
+    } else {
+        return lhs[0];
+    }
 }
 
 Ast *parse_stmt(Parser *P) {
     Ast *stmt = nullptr;
+
+    bool is_default = false;
+
     switch (peek_token(P)) {
         default:
             stmt = parse_simple_stmt(P);
             break;
 
-        case Token_Else:
-            syntax_error(P, "illegal else without matching if");
+        case Token_Semicolon: {
+            Token token = expect_token(P, Token_Semicolon);
+            AstEmptyStmt *empty = ast_new<AstEmptyStmt>();
+            empty->token = token;
+            stmt = empty;
             break;
+        }
 
         case Token_While: {
             Token token = expect_token(P, Token_While);
 
+            AstWhile *while_stmt = ast_new<AstWhile>();
             Ast *condition = parse_expr(P);
 
-            AstBlockExpr *block = parse_block_expr(P);
-
-            AstWhile *while_stmt = ast_new<AstWhile>();
             while_stmt->condition = condition;
+
+            Ast *prev_control = P->control_target;
+            P->control_target = while_stmt;
+
+            AstBlockExpr *block = parse_block_expr(P);
             while_stmt->block = block;
+
+            P->control_target = prev_control;
+
             stmt = while_stmt;
             break;
         }
@@ -808,13 +792,18 @@ Ast *parse_stmt(Parser *P) {
         case Token_Do: {
             Token token = expect_token(P, Token_Do);
 
+            AstDo *do_stmt = ast_new<AstDo>();
+
+            Ast *prev_control = P->control_target;
+            P->control_target = do_stmt;
+
             AstBlockExpr *block = parse_block_expr(P);
 
             expect_token(P, Token_While);
-
             Ast *condition = parse_expr(P);
 
-            AstDo *do_stmt = ast_new<AstDo>();
+            P->control_target = prev_control;
+
             do_stmt->condition = condition;
             do_stmt->block = block;
             stmt = do_stmt;
@@ -823,16 +812,25 @@ Ast *parse_stmt(Parser *P) {
 
         case Token_For: {
             Token token = expect_token(P, Token_For);
-            Ast *condition = parse_expr(P);
-            AstBlockExpr *block = parse_block_expr(P);
 
             AstFor *for_stmt = ast_new<AstFor>();
+
+            Ast *condition = parse_expr(P);
             for_stmt->condition = condition;
+
+            Ast *prev_control = P->control_target;
+            P->control_target = for_stmt;
+
+            AstBlockExpr *block = parse_block_expr(P);
+
+            P->control_target = prev_control;
+
             for_stmt->block = block;
             for_stmt->token = token;
             stmt = for_stmt;
             break;
         }
+
 
         case Token_Break: {
             Token token = expect_token(P, Token_Break);
@@ -867,6 +865,22 @@ Ast *parse_stmt(Parser *P) {
             stmt = ret;
             break;
         }
+
+        case Token_Case: {
+            Token token = expect_token(P, Token_Case);
+            Ast *expr = parse_expr(P);
+
+            AstCase *c = ast_new<AstCase>();
+            c->expr = expr;
+            c->is_default = is_default;
+            c->token = token;
+            stmt = c;
+            break;
+        }
+
+        case Token_Else:
+            syntax_error(P, "illegal else without matching if");
+            break;
     }
 
     return stmt;
@@ -882,7 +896,7 @@ scan_begin:
 
     #define TOKCASE(C,T) case C: advance_char(P); tok.kind = T; break
 
-    switch (peek_token(P)) {
+    switch (peek_char(P)) {
         default:
             tok.kind = Token_Unknown;
             break;
@@ -961,6 +975,9 @@ scan_begin:
             if (peek_char(P) == '=') {
                 advance_char(P);
                 tok.kind = Token_DivAssign;
+            } else if (peek_char(P) == '/') {
+                advance_line(P);
+                goto scan_begin;
             } else {
                 tok.kind = Token_Slash;
             }
@@ -1071,10 +1088,10 @@ scan_begin:
 
             auto it = keyword_map.find(name);
             if (it != keyword_map.end()) {
+                tok.kind = it->second;
+            } else {
                 tok.kind = Token_Name;
                 tok.name = atom_create(name);
-            } else {
-                tok.kind = it->second;
             }
             break;
         }

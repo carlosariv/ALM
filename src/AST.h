@@ -9,40 +9,6 @@
 struct Ast;
 struct Type;
 
-enum Operator {
-    Operator_Nil,
-
-    Operator_UnaryPlus,
-    Operator_Negate,
-    Operator_Not,
-    Operator_AddressOf,
-    Operator_IndexOf,
-    Operator_Deref,
-    Operator_Cast,
-
-    Operator_Add,
-    Operator_Sub,
-    Operator_Mult,
-    Operator_Div,
-    Operator_Mod,
-
-    Operator_Equal,
-    Operator_NotEqual,
-    Operator_Less,
-    Operator_Greater,
-    Operator_LessEqual,
-    Operator_GreaterEqual,
-    Operator_And,
-    Operator_Or,
-    Operator_LeftShift,
-    Operator_RightShift,
-    Operator_BitwiseAnd,
-    Operator_BitwiseOr,
-    Operator_Xor,
-
-    Operator_COUNT
-};
-
 enum LiteralKind {
     Literal_Integer,
     Literal_Floating,
@@ -61,6 +27,8 @@ enum AstKind {
     Ast_EmptyStmt,
     Ast_ExprStmt,
     Ast_Assign,
+
+    Ast_Case,
     Ast_Do,
     Ast_While,
     Ast_For,
@@ -124,10 +92,19 @@ struct AstValueDecl : Ast {
     Array<Ast*> lhs;
     Array<Ast*> rhs;
     Ast *type_defn;
-    bool constant;
+    bool is_constant;
 
     AstValueDecl() {
         kind = Ast_ValueDecl;
+    }
+};
+
+struct AstAssign : Ast {
+    Array<Ast*> lhs;
+    Array<Ast*> rhs;
+
+    AstAssign() {
+        kind = Ast_Assign;
     }
 };
 
@@ -168,6 +145,7 @@ struct AstBinaryExpr : Ast {
     Operator op;
     Ast *lhs;
     Ast *rhs;
+    Token token;
 
     AstBinaryExpr() {
         kind = Ast_BinaryExpr;
@@ -254,6 +232,7 @@ struct AstStarExpr : Ast {
 };
 
 struct AstEmptyStmt : Ast {
+    Token token;
     AstEmptyStmt() {
         kind = Ast_EmptyStmt;
     }
@@ -266,12 +245,13 @@ struct AstExprStmt : Ast {
     }
 };
 
-struct AstAssign : Ast {
-    Array<Ast*> lhs;
-    Array<Ast*> rhs;
+struct AstCase : Ast {
+    Ast *expr;
+    bool is_default;
+    Token token;
 
-    AstAssign() {
-        kind = Ast_Assign;
+    AstCase() {
+        kind = Ast_Case;
     }
 };
 
