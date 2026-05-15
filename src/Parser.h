@@ -23,14 +23,13 @@ struct Parser {
 
     SourceFile* current_file;
     Token current_token;
-    usize current_line;
-    usize current_col;
-    isize stream_index;
+    usize current_line = 1;
+    usize current_col = 1;
+    isize stream_index = 0;
     u8 *stream;
 
     int expr_level = 0;
     bool allow_type = false;
-
 
     Ast *control_target = nullptr;
     AstBlockExpr *block = nullptr;
@@ -39,6 +38,7 @@ struct Parser {
 
 Token get_token(Parser *P);
 Token next_token(Parser *P);
+void advance_char(Parser *P);
 
 
 inline TokenKind peek_token(Parser *P) {
@@ -65,19 +65,6 @@ inline bool end_of_file(Parser *P) {
     return peek_char(P) == '\0';
 }
 
-inline void advance_char(Parser *P) {
-    P->stream_index++;
-    if (P->stream_index >= P->current_file->content.len) {
-        P->stream_index = P->current_file->content.len - 1;
-    }
-    P->stream = P->current_file->content.text + P->stream_index;
-}
-
-inline void add_source(Parser *P, SourceFile* source) {
-    P->files.add(source);
-}
-
-
 inline char peek_next_char(Parser *P) {
     if (end_of_file(P)) {
         return 0;
@@ -85,26 +72,23 @@ inline char peek_next_char(Parser *P) {
     return P->current_file->content[P->stream_index + 1];
 }
 
+inline void add_source(Parser *P, SourceFile* source) {
+    P->files.add(source);
+}
+
 inline bool match_char(Parser *P, char ch) {
     return peek_char(P) == ch;
 }
 
 inline void advance_line(Parser *P) {
+    isize line = P->current_line;
     while (!end_of_file(P)) {
-        if (peek_char(P) == '\r' && peek_next_char(P) == '\n') {
-            advance_char(P);
-            break;
-        } else if (peek_char(P) == '\n') {
-            advance_char(P);
+        if (P->current_line > line) {
             break;
         }
         advance_char(P);
     }
 }
-
-
-template<typename... Args>
-void syntax_error(Parser *P, std::format_string<Args...> fmt, Args&&... args);
 
 void init_parse_context(Parser *P, SourceFile *file);
 
@@ -139,6 +123,7 @@ AstProcType *parse_proc_type(Parser *P);
 AstStructType *parse_struct_type(Parser *P);
 
 Ast *parse_type(Parser *P);
+Ast *parse_operand(Parser *P);
 
 void init_global_parser();
 

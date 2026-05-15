@@ -38,12 +38,6 @@ std::unordered_map<String, TokenKind, StringHasher> keyword_map = [] {
 }();
 
 template<typename... Args>
-void syntax_error(Parser *P, std::format_string<Args...> fmt, Args&&... args) {
-    std::print("syntax error: {},{}: ", P->current_line, P->current_col);
-    std::println(fmt, std::forward<Args>(args)...);
-}
-
-template<typename... Args>
 void report_parser_error(Parser *P, std::format_string<Args...> fmt, Args&&... args) {
     std::print("syntax error: {},{}: ", P->current_line, P->current_col);
     std::println(fmt, std::forward<Args>(args)...);
@@ -57,21 +51,13 @@ void rewind(Parser *P, Token token) {
     P->stream = P->current_file->content.text + P->stream_index;
 }
 
-AstValueDecl *parse_decl(Parser *P);
-
 AstBlockExpr *parse_block_expr(Parser *P);
 Ast *parse_stmt(Parser *P);
 Ast *parse_simple_stmt(Parser *P);
-Ast *parse_expr_stmt(Parser *P);
 
-Array<Ast*> parse_expr_list(Parser *P);
 Array<Ast*> parse_name_list(Parser *P);
 
-Ast *parse_type_defn(Parser *P);
-
 AstProcLit *parse_proc_lit(Parser *P);
-AstProcType *parse_proc_type(Parser *P);
-AstStructType *parse_struct_type(Parser *P);
 
 Operator unary_operator_from_token(TokenKind token) {
     switch (token) {
@@ -110,15 +96,15 @@ Token expect_token(Parser *P, TokenKind token) {
         next_token(P);
         return token;
     } else {
-        syntax_error(P, "expected {}, got {}", string_from_token(token), string_from_token(peek_token(P)));
+        report_parser_error(P, "expected '{}', got '{}'", string_from_token(token), string_from_token(peek_token(P)));
         return {};
     }
 }
 
 void init_parser_context(Parser *P, SourceFile *file) {
     P->current_file = file;
-    P->current_line = 0;
-    P->current_col = 0;
+    P->current_line = 1;
+    P->current_col = 1;
     P->stream_index = 0;
     P->stream = file->content.text;
     P->current_token = {};
@@ -214,7 +200,7 @@ AstStructType *parse_struct_type(Parser *P) {
     AstStructType *struct_type = ast_new<AstStructType>();
 
     while (!is_token(P, Token_CloseBrace)) {
-        Ast *stmt = parse_simple_stmt(P);
+        Ast *stmt = parse_stmt(P);
         if (!stmt) break;
 
         struct_type->members.add(stmt);
@@ -236,7 +222,11 @@ AstIfExpr *parse_if_expr(Parser *P) {
     Ast *prev_control = P->control_target;
     P->control_target = if_expr;
 
+    int prev_expr_level = P->expr_level;
+    P->expr_level = -1;
     Ast *condition = parse_expr(P);
+
+    P->expr_level = prev_expr_level;
 
     P->control_target = prev_control;
 
@@ -278,16 +268,18 @@ AstBlockExpr *parse_block_expr(Parser *P) {
     AstBlockExpr *block = ast_new<AstBlockExpr>();
 
     AstBlockExpr *prev_block = P->block;
-
     P->block = block;
+
+    if (is_token(P, Token_Case)) {
+        block->is_ifcase = true;
+        if (P->control_target == nullptr || P->control_target->kind != Ast_IfExpr) {
+            report_parser_error(P, "case expression in a non-if block");
+        }
+    }
 
     while (!is_token(P, Token_CloseBrace)) {
         Ast *stmt = parse_stmt(P);
         if (!stmt) break;
-
-        if (stmt->kind == Ast_Case) {
-            
-        }
 
         block->statements.add(stmt);
     }
@@ -309,13 +301,14 @@ AstStarExpr *parse_star_expr(Parser *P) {
 }
 
 Ast *parse_type(Parser *P) {
-
     bool prev_allow_type = P->allow_type;
-
     P->allow_type = true;
-    return parse_expr(P);
+
+    Ast *expr = parse_operand(P);
 
     P->allow_type = prev_allow_type;
+
+    return expr;
 }
 
 AstParam *parse_param(Parser *P) {
@@ -549,7 +542,11 @@ Ast *parse_primary_expr(Parser *P, Ast *operand) {
             }
 
             case Token_OpenBrace: {
-                operand = parse_compound_literal(P, operand);
+                if (P->expr_level >= 0) {
+                    operand = parse_compound_literal(P, operand);
+                } else {
+                    loop = false;
+                }
                 break;
             }
         }
@@ -773,7 +770,13 @@ Ast *parse_stmt(Parser *P) {
             Token token = expect_token(P, Token_While);
 
             AstWhile *while_stmt = ast_new<AstWhile>();
+
+            int prev_expr_level = P->expr_level;
+            P->expr_level = -1;
             Ast *condition = parse_expr(P);
+
+            P->expr_level = prev_expr_level;
+
 
             while_stmt->condition = condition;
 
@@ -815,7 +818,12 @@ Ast *parse_stmt(Parser *P) {
 
             AstFor *for_stmt = ast_new<AstFor>();
 
+            int prev_expr_level = P->expr_level;
+            P->expr_level = -1;
             Ast *condition = parse_expr(P);
+
+            P->expr_level = prev_expr_level;
+
             for_stmt->condition = condition;
 
             Ast *prev_control = P->control_target;
@@ -830,7 +838,6 @@ Ast *parse_stmt(Parser *P) {
             stmt = for_stmt;
             break;
         }
-
 
         case Token_Break: {
             Token token = expect_token(P, Token_Break);
@@ -868,7 +875,14 @@ Ast *parse_stmt(Parser *P) {
 
         case Token_Case: {
             Token token = expect_token(P, Token_Case);
+
+            if (P->block == nullptr || !P->block->is_ifcase) {
+                report_parser_error(P, "did not expect case in middle of block");
+            }
+
             Ast *expr = parse_expr(P);
+
+            expect_token(P, Token_Colon);
 
             AstCase *c = ast_new<AstCase>();
             c->expr = expr;
@@ -879,19 +893,55 @@ Ast *parse_stmt(Parser *P) {
         }
 
         case Token_Else:
-            syntax_error(P, "illegal else without matching if");
+            report_parser_error(P, "illegal else without matching if");
             break;
     }
 
+    bool requires_semi = false;
+    if (stmt) {
+        if (stmt->kind == Ast_ExprStmt ||
+            (stmt->kind == Ast_ValueDecl && !((AstValueDecl*)stmt)->is_constant)) {
+            requires_semi = true;
+        }
+    }
+
+    if (requires_semi) {
+        expect_token(P, Token_Semicolon);
+    }
+
     return stmt;
+}
+
+void advance_char(Parser *P) {
+    if (P->stream_index == P->current_file->content.len) {
+        return;
+    }
+
+    if (peek_char(P) == '\r') {
+        P->stream_index++;
+        if (peek_char(P) == '\n') {
+            P->stream_index++;
+        }
+        P->current_line++;
+        P->current_col = 1;
+    } else if (peek_char(P) == '\n') {
+        P->stream_index++;
+        P->current_line++;
+        P->current_col = 1;
+    } else {
+        P->stream_index++;
+        P->current_col++;
+    }
+
+    P->stream = P->current_file->content.text + P->stream_index;
 }
 
 Token next_token(Parser *P) {
     Token tok = {};
 
 scan_begin:
-    tok.start.line = P->current_line;
-    tok.start.col = P->current_col;
+    tok.start.line  = P->current_line;
+    tok.start.col   = P->current_col;
     tok.start.index = P->stream_index;
 
     #define TOKCASE(C,T) case C: advance_char(P); tok.kind = T; break
@@ -963,6 +1013,7 @@ scan_begin:
             break;
 
         case '+':
+            advance_char(P);
             if (peek_char(P) == '=') {
                 advance_char(P);
                 tok.kind = Token_PlusAssign;
@@ -972,6 +1023,7 @@ scan_begin:
             break;
 
         case '/':
+            advance_char(P);
             if (peek_char(P) == '=') {
                 advance_char(P);
                 tok.kind = Token_DivAssign;
@@ -984,6 +1036,7 @@ scan_begin:
             break;
 
         case '=':
+            advance_char(P);
             if (peek_char(P) == '=') {
                 advance_char(P);
                 tok.kind = Token_Equal;
@@ -993,6 +1046,7 @@ scan_begin:
             break;
 
         case '|':
+            advance_char(P);
             if (peek_char(P) == '|') {
                 advance_char(P);
                 tok.kind = Token_Or;
@@ -1006,6 +1060,7 @@ scan_begin:
 
 
         case '&':
+            advance_char(P);
             if (peek_char(P) == '&') {
                 advance_char(P);
                 tok.kind = Token_And;
@@ -1018,6 +1073,7 @@ scan_begin:
             break;
 
         case '<':
+            advance_char(P);
             if (peek_char(P) == '<') {
                 advance_char(P);
                 tok.kind = Token_LeftShift;
@@ -1030,6 +1086,7 @@ scan_begin:
             break;
 
         case '>':
+            advance_char(P);
             if (peek_char(P) == '>') {
                 advance_char(P);
                 tok.kind = Token_RightShift;
@@ -1048,9 +1105,11 @@ scan_begin:
             goto scan_begin;
 
         case '\"': {
+            advance_char(P);
             while (peek_char(P) != '"') {
                 advance_char(P);
             }
+            advance_char(P);
 
             int len = P->stream_index - tok.start.index;
             String string = make_string(P->current_file->content.text + tok.start.index, len);

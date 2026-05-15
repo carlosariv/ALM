@@ -216,6 +216,7 @@ struct AstParenExpr : Ast {
 
 struct AstBlockExpr : Ast {
     Array<Ast*> statements;
+    bool is_ifcase = false;
 
     AstBlockExpr() {
         kind = Ast_BlockExpr;

@@ -84,31 +84,31 @@ X(Token_KeywordEnd, "KeywordEnd") \
 
 #define OPERATOR_LIST() \
 X(Operator_Nil, "Nil") \
-X(Operator_UnaryPlus, "UnaryPlus") \
-X(Operator_Not, "Not") \
-X(Operator_Negate, "Negate") \
+X(Operator_UnaryPlus, "unary +") \
+X(Operator_Not, "!") \
+X(Operator_Negate, "unary -") \
 X(Operator_AddressOf, "AddressOf") \
-X(Operator_IndexOf, "IndexOf") \
-X(Operator_Deref, "Deref") \
-X(Operator_Add, "Add") \
-X(Operator_Sub, "Sub") \
-X(Operator_Mult, "Mult") \
-X(Operator_Div, "Div") \
-X(Operator_Mod, "Mod") \
-X(Operator_Equal, "Equal") \
-X(Operator_NotEqual, "NotEqual") \
-X(Operator_Less, "Less") \
-X(Operator_Greater, "Greater") \
-X(Operator_LessEqual, "LessEqual") \
-X(Operator_GreaterEqual, "GreaterEqual") \
-X(Operator_LeftShift, "LeftShift") \
-X(Operator_RightShift, "RightShift") \
-X(Operator_Xor, "Xor") \
-X(Operator_BitwiseAnd, "BitwiseAnd") \
-X(Operator_BitwiseOr, "BitwiseOr") \
-X(Operator_And, "And") \
-X(Operator_Or, "Or") \
-X(Operator_Cast, "Cast") \
+X(Operator_IndexOf, "[]") \
+X(Operator_Deref, ".*") \
+X(Operator_Add, "+") \
+X(Operator_Sub, "-") \
+X(Operator_Mult, "binary *") \
+X(Operator_Div, "/") \
+X(Operator_Mod, "%") \
+X(Operator_Equal, "==") \
+X(Operator_NotEqual, "!=") \
+X(Operator_Less, "<") \
+X(Operator_Greater, ">") \
+X(Operator_LessEqual, "<=") \
+X(Operator_GreaterEqual, ">=") \
+X(Operator_LeftShift, "<<") \
+X(Operator_RightShift, ">>") \
+X(Operator_Xor, "^") \
+X(Operator_BitwiseAnd, "&") \
+X(Operator_BitwiseOr, "|") \
+X(Operator_And, "&&") \
+X(Operator_Or, "||") \
+X(Operator_Cast, "cast") \
 
 
 #define X(K,S) K,
