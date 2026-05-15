@@ -214,6 +214,24 @@ AstStructType *parse_struct_type(Parser *P) {
     return struct_type;
 }
 
+AstCase *parse_case_clause(Parser *P) {
+    Token token = expect_token(P, Token_Case);
+
+    if (P->block == nullptr || !P->block->is_ifcase) {
+        report_parser_error(P, "did not expect case in middle of block");
+    }
+
+    Ast *expr = parse_expr(P);
+
+    expect_token(P, Token_Colon);
+
+    AstCase *c = ast_new<AstCase>();
+    c->expr = expr;
+    c->is_default = expr == nullptr;
+    c->token = token;
+    return c;
+}
+
 AstIfExpr *parse_if_expr(Parser *P) {
     Token token = expect_token(P, Token_If);
 
@@ -266,27 +284,55 @@ AstBlockExpr *parse_block_expr(Parser *P) {
     Token open = expect_token(P, Token_OpenBrace);
 
     AstBlockExpr *block = ast_new<AstBlockExpr>();
+    block->open = open;
 
     AstBlockExpr *prev_block = P->block;
     P->block = block;
+
+    int prev_expr_level = P->expr_level;
+    P->expr_level = 0;
 
     if (is_token(P, Token_Case)) {
         block->is_ifcase = true;
         if (P->control_target == nullptr || P->control_target->kind != Ast_IfExpr) {
             report_parser_error(P, "case expression in a non-if block");
         }
+
+        AstCase *clause_tail = nullptr;
+
+        while (!is_token(P, Token_CloseBrace)) {
+            AstCase *clause = parse_case_clause(P);
+            if (!clause) break;
+
+            while (!is_token(P, Token_Case) && !is_token(P, Token_CloseBrace)) {
+                Ast *stmt = parse_stmt(P);
+                if (!stmt) break;
+                clause->statements.add(stmt);
+            }
+
+            block->statements.add(clause);
+
+            if (clause_tail) {
+                clause_tail->next_clause = clause;
+            }
+            clause->prev_clause = clause_tail;
+            clause->next_clause = nullptr;
+            clause_tail = clause;
+        }
+    } else {
+        while (!is_token(P, Token_CloseBrace)) {
+            Ast *stmt = parse_stmt(P);
+            if (!stmt) break;
+            block->statements.add(stmt);
+        }
     }
 
-    while (!is_token(P, Token_CloseBrace)) {
-        Ast *stmt = parse_stmt(P);
-        if (!stmt) break;
-
-        block->statements.add(stmt);
-    }
+    P->expr_level = prev_expr_level;
 
     P->block = prev_block;
 
     Token close = expect_token(P, Token_CloseBrace);
+    block->close = close;
 
     return block;
 }
@@ -311,19 +357,38 @@ Ast *parse_type(Parser *P) {
     return expr;
 }
 
-AstParam *parse_param(Parser *P) {
-    AstParam *param = ast_new<AstParam>();
-    return param;
-}
-
 AstProcType *parse_proc_type(Parser *P) {
     Token open = expect_token(P, Token_OpenParen);
 
     AstProcType *proc_type = ast_new<AstProcType>();
 
+    bool named = false;
+
     while (!is_token(P, Token_CloseParen)) {
-        AstParam *param = parse_param(P);
-        if (!param) break;
+        Array<Ast*> lhs = parse_expr_list(P);
+        Ast *type_defn = nullptr;
+        Array<Ast*> rhs;
+
+        if (match_token(P, Token_Colon)) {
+            named = true;
+            type_defn = parse_type(P);
+
+            if (type_defn) {
+                if (match_token(P, Token_Assign)) {
+                    rhs = parse_expr_list(P);
+                    if (rhs.count == 0) {
+                        report_parser_error(P, "missing expression after '='");
+                    }
+                }
+            }
+        } else {
+            report_parser_error(P, "expected ':' after field list, got {}", string_from_token(peek_token(P)));
+        }
+
+        AstParam *param = ast_new<AstParam>();
+        param->lhs = lhs;
+        param->rhs = rhs;
+        param->type_defn = type_defn;
 
         proc_type->params.add(param);
 
@@ -331,7 +396,6 @@ AstProcType *parse_proc_type(Parser *P) {
     }
 
     Token close = expect_token(P, Token_CloseParen);
-
 
     Ast *ret_type = nullptr;
     if (match_token(P, Token_Arrow)) {
@@ -425,7 +489,7 @@ Ast *parse_operand(Parser *P) {
 
             if (!is_type) {
                 Ast *expr = parse_expr(P);
-                if (is_token(P, Token_Colon)) {
+                if (is_token(P, Token_Colon) || is_token(P, Token_Comma)) {
                     is_type = true;
                 }
                 rewind(P, open);
@@ -736,22 +800,38 @@ Ast *parse_simple_stmt(Parser *P) {
         vd->rhs = rhs;
         vd->type_defn = type_defn;
         vd->is_constant = is_constant;
+
+        if (!is_constant) {
+            expect_token(P, Token_Semicolon);
+        }
         return vd;
     } else if (match_token(P, Token_Assign)) {
         rhs = parse_expr_list(P);
         AstAssign *assign = ast_new<AstAssign>();
         assign->lhs = lhs;
         assign->rhs = rhs;
+        expect_token(P, Token_Semicolon);
         return assign;
     } else {
-        return lhs[0];
+        Ast *expr = lhs[0];
+        // NOTE: Trailing block-ish expression
+        if (is_token(P, Token_Case) || is_token(P, Token_CloseBrace)) {
+            P->block->trailing = expr;
+            return expr;
+        } else {
+            if (expr->kind != Ast_IfExpr) {
+                expect_token(P, Token_Semicolon);
+            }
+
+            AstExprStmt *stmt = ast_new<AstExprStmt>();
+            stmt->expr = expr;
+            return stmt;
+        }
     }
 }
 
 Ast *parse_stmt(Parser *P) {
     Ast *stmt = nullptr;
-
-    bool is_default = false;
 
     switch (peek_token(P)) {
         default:
@@ -873,42 +953,14 @@ Ast *parse_stmt(Parser *P) {
             break;
         }
 
-        case Token_Case: {
-            Token token = expect_token(P, Token_Case);
-
-            if (P->block == nullptr || !P->block->is_ifcase) {
-                report_parser_error(P, "did not expect case in middle of block");
-            }
-
-            Ast *expr = parse_expr(P);
-
-            expect_token(P, Token_Colon);
-
-            AstCase *c = ast_new<AstCase>();
-            c->expr = expr;
-            c->is_default = is_default;
-            c->token = token;
-            stmt = c;
+        case Token_Case:
+            report_parser_error(P, "case clause unexpected");
             break;
-        }
 
         case Token_Else:
             report_parser_error(P, "illegal else without matching if");
             break;
     }
-
-    bool requires_semi = false;
-    if (stmt) {
-        if (stmt->kind == Ast_ExprStmt ||
-            (stmt->kind == Ast_ValueDecl && !((AstValueDecl*)stmt)->is_constant)) {
-            requires_semi = true;
-        }
-    }
-
-    if (requires_semi) {
-        expect_token(P, Token_Semicolon);
-    }
-
     return stmt;
 }
 
@@ -1165,4 +1217,3 @@ scan_begin:
 
     return last_token;
 }
-

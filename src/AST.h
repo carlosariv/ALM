@@ -109,9 +109,9 @@ struct AstAssign : Ast {
 };
 
 struct AstParam : Ast {
-    Atom *name;
+    Array<Ast*> lhs;
+    Array<Ast*> rhs;
     Ast *type_defn;
-    Ast *init;
     AstParam() {
         kind = Ast_Param;
     }
@@ -217,6 +217,9 @@ struct AstParenExpr : Ast {
 struct AstBlockExpr : Ast {
     Array<Ast*> statements;
     bool is_ifcase = false;
+    Ast *trailing = nullptr;
+    Token open;
+    Token close;
 
     AstBlockExpr() {
         kind = Ast_BlockExpr;
@@ -249,6 +252,9 @@ struct AstExprStmt : Ast {
 struct AstCase : Ast {
     Ast *expr;
     bool is_default;
+    Array<Ast*> statements;
+    AstCase *prev_clause;
+    AstCase *next_clause;
     Token token;
 
     AstCase() {
