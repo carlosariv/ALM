@@ -382,7 +382,9 @@ AstProcType *parse_proc_type(Parser *P) {
                 }
             }
         } else {
-            report_parser_error(P, "expected ':' after field list, got {}", string_from_token(peek_token(P)));
+            if (named) {
+                report_parser_error(P, "expected ':' after field list, got {}", string_from_token(peek_token(P)));
+            }
         }
 
         AstParam *param = ast_new<AstParam>();
