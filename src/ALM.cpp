@@ -67,7 +67,10 @@ int main(int argc, char **argv) {
         }
     }
 
-    parse(&parser);
+    for (SourceFile *file : parser.files) {
+        AstFile *ast_file = parse_file(&parser, file);
+        ast_print(ast_file);
+    }
 
     return 0;
 }

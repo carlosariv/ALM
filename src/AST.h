@@ -194,8 +194,8 @@ struct AstCallExpr : Ast {
 
 struct AstIfExpr : Ast {
     Ast *condition;
-    Ast *then_expr;
-    AstIfExpr *else_if;
+    Ast *then_expr = nullptr;
+    AstIfExpr *else_if = nullptr;
     Token token;
 
     AstIfExpr() {
@@ -327,7 +327,7 @@ struct AstReturn : Ast {
 };
 
 struct AstProcType : Ast {
-    Array<Ast*> params;
+    Array<AstParam*> params;
     Ast *return_type;
 
     AstProcType() {

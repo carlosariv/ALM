@@ -47,6 +47,9 @@ void ast_print(Ast *node) {
 
     switch (node->kind) {
         case Ast_Unknown:
+        case Ast_Error:
+        case Ast_EmptyStmt:
+        case Ast_COUNT:
             break;
 
         case Ast_File: {
@@ -67,23 +70,31 @@ void ast_print(Ast *node) {
             break;
         }
 
+        case Ast_ProcType: {
+            AstProcType *proc_type = static_cast<AstProcType*>(node);
+            ast_out("(");
+            for (AstParam *param : proc_type->params) {
+                ast_print(param);
+            }
+            ast_out(")");
+
+            if (proc_type->return_type) {
+                ast_out("-> (");
+                ast_print(proc_type->return_type);
+                ast_out(")");
+            }
+
+            break;
+        }
+
         case Ast_ProcLit: {
             AstProcLit *proc_lit = static_cast<AstProcLit*>(node);
-            // ast_out("(proc (");
-            // for (Ast *param : proc_lit->params) {
-            //     ast_print(param);
-            // }
-            // ast_out(")\n");
+            ast_print(proc_lit->proc_type);
 
-            // if (proc_lit->return_type) {
-            //     ast_out("-> (");
-            //     ast_print(proc_lit->return_type);
-            //     ast_out(")");
-            // }
-            // tab_begin();
-            // ast_print(proc_lit->body);
-            // tab_end();
-            // ast_out(")\n");
+            tab_begin();
+            ast_print(proc_lit->body);
+            tab_end();
+            ast_out(")\n");
             break;
         }
 
@@ -109,10 +120,26 @@ void ast_print(Ast *node) {
 
         case Ast_Param: {
             AstParam *param = static_cast<AstParam*>(node);
-            ast_out("(: ");
-            //ast_print(param->name);
-            ast_print(param->type_defn);
-            ast_out(" )");
+            ast_out("(");
+            for (Ast *name : param->lhs) {
+                ast_print(name);
+                ast_out(",");
+            }
+
+            if (param->type_defn) {
+                ast_out(":");
+                ast_print(param->type_defn);
+            }
+
+            if (param->rhs.count > 0) {
+                ast_out("= (");
+                for (Ast *e : param->rhs) {
+                    ast_print(e);
+                }
+                ast_out(")");
+            }
+
+            ast_out(")");
             break;
         }
 
@@ -168,7 +195,9 @@ void ast_print(Ast *node) {
 
             ast_print(if_expr->then_expr);
 
-            ast_print(if_expr->else_if);
+            if (if_expr->else_if) {
+                ast_print(if_expr->else_if);
+            }
             break;
         }
 
@@ -219,13 +248,84 @@ void ast_print(Ast *node) {
         }
 
         case Ast_ArrayType: {
+            AstArrayType *type = static_cast<AstArrayType*>(node);
+            ast_out("[");
+            if (type->dynamic) {
+                ast_out("..");
+            } else if (type->size) {
+                ast_print(type->size);
+            }
+            ast_out("]");
+            ast_print(type->elem);
             break;
         }
+
         case Ast_StructType: {
+            AstStructType *type = static_cast<AstStructType*>(node);
+            ast_out("struct (");
+            for (Ast *member : type->members) {
+                ast_print(member);
+            }
+            ast_out(")");
             break;
         }
+
         case Ast_UnionType: {
+            AstUnionType *type = static_cast<AstUnionType*>(node);
+            ast_out("struct (");
+            for (Ast *member : type->members) {
+                ast_print(member);
+            }
+            ast_out(")");
             break;
         }
+
+        case Ast_Do: {
+            AstDo *d = static_cast<AstDo*>(node);
+            ast_out("(do\n");
+            ast_print(d->block);
+            ast_out(") (");
+            ast_print(d->condition);
+            ast_out(")\n");
+            break;
+        }
+
+        case Ast_While: {
+            AstWhile *d = static_cast<AstWhile*>(node);
+            ast_out("(while\n");
+            ast_out("(");
+            ast_print(d->condition);
+            ast_out(")\n");
+            ast_print(d->block);
+            break;
+        }
+
+        case Ast_For: {
+            AstFor *f = static_cast<AstFor*>(node);
+            ast_out("(for\n");
+            ast_out("(");
+            ast_print(f->condition);
+            ast_out(")\n");
+            ast_print(f->block);
+            break;
+        }
+
+        case Ast_Case: {
+            AstCase *c = static_cast<AstCase*>(node);
+            break;
+        }
+
+        case Ast_Continue: {
+            break;
+        }
+
+        case Ast_Break: {
+            break;
+        }
+
+        case Ast_Fallthrough: {
+            break;
+        }
+
     }
 }

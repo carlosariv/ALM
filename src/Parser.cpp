@@ -112,9 +112,6 @@ void init_parser_context(Parser *P, SourceFile *file) {
 }
 
 void parse(Parser *P) {
-    for (SourceFile *file : P->files) {
-        AstFile *ast_file = parse_file(P, file);
-    }
 }
 
 AstName *parse_name(Parser *P) {
@@ -391,7 +388,6 @@ AstProcType *parse_proc_type(Parser *P) {
         param->lhs = lhs;
         param->rhs = rhs;
         param->type_defn = type_defn;
-
         proc_type->params.add(param);
 
         if (!match_token(P, Token_Comma)) break;
@@ -439,19 +435,33 @@ Ast *parse_operand(Parser *P) {
             return name;
         }
 
-        case Token_Integer:
-        case Token_Floating:
+        case Token_Integer: {
+            next_token(P);
+
+            AstLiteralExpr *expr = ast_new<AstLiteralExpr>();
+            expr->literal_kind = Literal_Integer;
+            expr->integer_value = token.integer_value;
+            expr->token = token;
+            return expr;
+        }
+
+        case Token_Floating: {
+            next_token(P);
+
+            AstLiteralExpr *expr = ast_new<AstLiteralExpr>();
+            expr->literal_kind = Literal_Floating;
+            expr->float_value = token.float_value;
+            expr->token = token;
+            return expr;
+        }
+
+
         case Token_String: {
             next_token(P);
 
             AstLiteralExpr *expr = ast_new<AstLiteralExpr>();
-            if (token.kind == Token_Integer) {
-                expr->literal_kind = Literal_Integer;
-            } else if (token.kind == Token_Floating) {
-                expr->literal_kind = Literal_Floating;
-            } else if (token.kind == Token_String) {
-                expr->literal_kind = Literal_String;
-            }
+            expr->literal_kind = Literal_String;
+            expr->string_value = token.string_value;
             expr->token = token;
             return expr;
         }
@@ -526,9 +536,10 @@ Ast *parse_operand(Parser *P) {
 
         case Token_Enum:
             return parse_enum_type(P);
-    }
 
-    return nullptr;
+        default:
+            return nullptr;
+    }
 }
 
 Array<Ast*> parse_expr_list(Parser *P) {
