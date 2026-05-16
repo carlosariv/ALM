@@ -5,9 +5,9 @@ project(ALM VERSION 1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# if (MSVC)
-#     add_compile_options(/we4062)
-# endif()
+if (MSVC)
+    add_compile_options(/we4062)
+endif()
 
 find_package(LLVM)
 
