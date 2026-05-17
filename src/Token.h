@@ -77,22 +77,22 @@ X(Token_If, "if") \
 X(Token_Else, "else") \
 X(Token_Then, "then") \
 X(Token_Case, "case") \
-X(Token_Default, "default") \
+X(Token_Of, "of") \
 X(Token_Return, "return") \
 X(Token_KeywordEnd, "KeywordEnd") \
 
 
 #define OPERATOR_LIST() \
 X(Operator_Nil, "Nil") \
-X(Operator_UnaryPlus, "unary +") \
+X(Operator_UnaryPlus, "unary '+'") \
 X(Operator_Not, "!") \
-X(Operator_Negate, "unary -") \
+X(Operator_Negate, "unary '-'") \
 X(Operator_AddressOf, "AddressOf") \
 X(Operator_IndexOf, "[]") \
 X(Operator_Deref, ".*") \
-X(Operator_Add, "+") \
-X(Operator_Sub, "-") \
-X(Operator_Mult, "binary *") \
+X(Operator_Add, "binary '+'") \
+X(Operator_Sub, "binray '-'") \
+X(Operator_Mult, "binary '*'") \
 X(Operator_Div, "/") \
 X(Operator_Mod, "%") \
 X(Operator_Equal, "==") \

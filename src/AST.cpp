@@ -100,21 +100,36 @@ void ast_print(Ast *node) {
 
         case Ast_ValueDecl: {
             AstValueDecl *decl = static_cast<AstValueDecl*>(node);
-            ast_out("(decl (");
+            ast_out("(decl ");
             for (Ast *name : decl->lhs) {
                 ast_print(name);
                 ast_out(" ");
             }
-            ast_out(")\n");
 
-            ast_out("(");
-            for (Ast *expr : decl->rhs) {
-                ast_print(expr);
-                ast_out("\n");
+            if (decl->type_defn) {
+                ast_print(decl->type_defn);
+            }
+
+            if (decl->rhs.count > 0) {
+                ast_out("(");
+                for (Ast *expr : decl->rhs) {
+                    ast_print(expr);
+                    ast_out("\n");
+                }
+                ast_out(")");
+            }
+
+            ast_out(")\n");
+            break;
+        }
+
+        case Ast_CompoundLiteral: {
+            AstCompoundLiteral *cl = static_cast<AstCompoundLiteral*>(node);
+            ast_out("(compound ");
+            for (Ast *init :  cl->initializer_list) {
+                ast_print(init);
             }
             ast_out(")");
-
-            ast_out(")\n");
             break;
         }
 
@@ -177,15 +192,45 @@ void ast_print(Ast *node) {
             break;
         }
 
-        case Ast_IndexExpr: {
-            AstIndexExpr *index = static_cast<AstIndexExpr*>(node);
+        case Ast_SubscriptExpr: {
+            AstSubscriptExpr *subscript = static_cast<AstSubscriptExpr*>(node);
+            ast_out("(subscript ");
+            ast_print(subscript->operand);
+            ast_out(" ");
+            ast_print(subscript->value);
+            ast_out(")");
+            break;
+        }
+
+        case Ast_CallExpr: {
+            AstCallExpr *call = static_cast<AstCallExpr*>(node);
+            ast_out("(call ");
+            ast_print(call->operand);
+
+            if (call->arguments.count > 0) {
+                ast_out("(");
+                for (Ast *arg : call->arguments) {
+                    ast_print(arg);
+                    ast_out(" ");
+                }
+                ast_out(")");
+            }
+            ast_out(")");
+            break;
+        }
+
+        case Ast_ParenExpr: {
+            AstParenExpr *p = static_cast<AstParenExpr*>(node);
+            ast_out("(");
+            ast_print(p->expr);
+            ast_out(")");
             break;
         }
 
         case Ast_IfExpr: {
             AstIfExpr *if_expr = static_cast<AstIfExpr*>(node);
             if (if_expr->condition) {
-                ast_out("(if\n");
+                ast_out("(if ");
                 ast_out("(");
                 ast_print(if_expr->condition);
                 ast_out(")");
@@ -207,6 +252,7 @@ void ast_print(Ast *node) {
             tab_begin();
             for (Ast *stmt : block->statements) {
                 ast_print(stmt);
+                ast_out("\n");
             }
             tab_end();
             ast_out(")\n");
@@ -241,9 +287,43 @@ void ast_print(Ast *node) {
 
         case Ast_Return: {
             AstReturn *ret = static_cast<AstReturn*>(node);
-            ast_out("(return ");
-            ast_print(ret->expr);
-            ast_out(")\n");
+            ast_out("(return");
+            if (ret->expr) {
+                ast_out(" ");
+                ast_print(ret->expr);
+            }
+            ast_out(")");
+            break;
+        }
+
+        case Ast_StarExpr: {
+            AstStarExpr *star = static_cast<AstStarExpr*>(node);
+            ast_out("(* ");
+            ast_print(star->elem);
+            ast_out(")");
+            break;
+        }
+
+        case Ast_EnumType: {
+            AstEnumType *et = static_cast<AstEnumType*>(node);
+            ast_out("(enum \n");
+            for (Ast *m : et->members) {
+                ast_print(m);
+                ast_out("\n");
+            }
+            ast_out(")");
+            break;
+        }
+
+        case Ast_Enumerator: {
+            Enumerator *en = static_cast<Enumerator*>(node);
+            ast_out("(enumerator ");
+            ast_print(en->name);
+            if (en->value) {
+                ast_out(" ");
+                ast_print(en->value);
+            }
+            ast_out(")");
             break;
         }
 
@@ -312,20 +392,31 @@ void ast_print(Ast *node) {
 
         case Ast_Case: {
             AstCase *c = static_cast<AstCase*>(node);
+            ast_out("(case ");
+            if (c->expr) {
+                ast_out("(");
+                ast_print(c->expr);
+                ast_out(")");
+            }
+            ast_out("\n(");
+            for (Ast *stmt : c->statements) {
+                ast_print(stmt);
+            }
+            ast_out(")");
             break;
         }
 
         case Ast_Continue: {
+            ast_out("(continue)");
             break;
         }
-
         case Ast_Break: {
+            ast_out("(break)");
             break;
         }
-
         case Ast_Fallthrough: {
+            ast_out("(fallthrough)");
             break;
         }
-
     }
 }

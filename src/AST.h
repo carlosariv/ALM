@@ -41,7 +41,6 @@ enum AstKind {
     Ast_LiteralExpr,
     Ast_UnaryExpr,
     Ast_BinaryExpr,
-    Ast_IndexExpr,
     Ast_SubscriptExpr,
     Ast_CallExpr,
     Ast_ParenExpr,
@@ -163,15 +162,6 @@ struct AstCompoundLiteral : Ast {
     }
 };
 
-struct AstIndexExpr : Ast {
-    Ast *lhs;
-    Ast *elem;
-
-    AstIndexExpr() {
-        kind = Ast_IndexExpr;
-    }
-};
-
 struct AstSubscriptExpr : Ast {
     Ast *operand;
     Ast *value;
@@ -197,6 +187,7 @@ struct AstIfExpr : Ast {
     Ast *then_expr = nullptr;
     AstIfExpr *else_if = nullptr;
     Token token;
+    bool is_ifcase = false;
 
     AstIfExpr() {
         kind = Ast_IfExpr;

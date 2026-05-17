@@ -17,34 +17,30 @@ void simple_wrapper_println(std::format_string<Args...> fmt, Args&&... args) {
     std::println(fmt, std::forward<Args>(args)...); // Print the rest and a newline
 }
 
-void CommandLineOpts::process_command_line_args(std::span<char*, std::dynamic_extent> args) {
+void process_command_line_args(CommandLineOpts *opts, std::span<char*, std::dynamic_extent> args) {
     for (char * &ptr : args) {
         std::string_view arg(ptr);
 
         if (arg.find("-") == 0) {
+            if (arg == "-ast-dump") {
+                opts->dump_ast = true;
+            }
         } else {
             std::string filename(arg.begin(), arg.end());
-            filenames.push_back(filename);
+            opts->filenames.push_back(filename);
         }
     }
 }
 
-void init_global_parser();
 void atomizer_init();
 
 int main(int argc, char **argv) {
-    simple_wrapper_println("\x1b[31mHello, Red!\x1b[0m");
+    // simple_wrapper_println("\x1b[31mHello, Red!\x1b[0m");
 
     CommandLineOpts opts;
-    opts.process_command_line_args(std::span(argv + 1, argc - 1));
+    process_command_line_args(&opts, std::span(argv + 1, argc - 1));
 
     atomizer_init();
-
-    std::string foo = "one two";
-
-    String foo_str = make_string(foo.c_str(), foo.length());
-
-    std::println("{}", foo_str);
 
     Parser parser;
     for (std::string filename : opts.filenames) {
@@ -69,7 +65,9 @@ int main(int argc, char **argv) {
 
     for (SourceFile *file : parser.files) {
         AstFile *ast_file = parse_file(&parser, file);
-        ast_print(ast_file);
+        if (opts.dump_ast) {
+            ast_print(ast_file);
+        }
     }
 
     return 0;

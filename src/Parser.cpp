@@ -241,11 +241,15 @@ AstIfExpr *parse_if_expr(Parser *P) {
     P->expr_level = -1;
     Ast *condition = parse_expr(P);
 
+    if (match_token(P, Token_Of)) {
+        if_expr->is_ifcase = true;
+    }
+
     P->expr_level = prev_expr_level;
 
-    P->control_target = prev_control;
-
     Ast *then_expr = parse_expr(P);
+
+    P->control_target = prev_control;
 
     if_expr->condition = condition;
     if_expr->then_expr = then_expr;
@@ -1176,8 +1180,8 @@ scan_begin:
             }
             advance_char(P);
 
-            int len = P->stream_index - tok.start.index;
-            String string = make_string(P->current_file->content.text + tok.start.index, len);
+            int len = P->stream_index - (tok.start.index + 1) - 1;
+            String string = make_string(P->current_file->content.text + tok.start.index + 1, len);
 
             tok.kind = Token_String;
             tok.string_value = string;
