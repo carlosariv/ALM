@@ -207,12 +207,12 @@ Enumerator *parse_enumerator(Parser *P) {
     return enumerator;
 }
 
-AstEnumType *parse_enum_type(Parser *P) {
+EnumTypeDefn *parse_enum_type(Parser *P) {
     Token token = expect_token(P, Token_Enum);
 
     Token open = expect_token(P, Token_OpenBrace);
 
-    AstEnumType *enum_type = ast_new<AstEnumType>();
+    EnumTypeDefn *enum_type = ast_new<EnumTypeDefn>();
 
     while (!is_token(P, Token_CloseBrace)) {
         Enumerator *enumerator = parse_enumerator(P);
@@ -235,12 +235,12 @@ AstEnumType *parse_enum_type(Parser *P) {
     return enum_type;
 }
 
-AstStructType *parse_struct_type(Parser *P) {
+StructTypeDefn *parse_struct_type(Parser *P) {
     Token token = expect_token(P, Token_Struct);
 
     Token open = expect_token(P, Token_OpenBrace);
 
-    AstStructType *struct_type = ast_new<AstStructType>();
+    StructTypeDefn *struct_type = ast_new<StructTypeDefn>();
 
     while (!is_token(P, Token_CloseBrace)) {
         Ast *stmt = parse_stmt(P);
@@ -257,7 +257,7 @@ AstStructType *parse_struct_type(Parser *P) {
     return struct_type;
 }
 
-AstCase *parse_case_clause(Parser *P) {
+CaseExpr *parse_case_clause(Parser *P) {
     Token token = expect_token(P, Token_Case);
 
     if (P->block == nullptr || !P->block->is_ifcase) {
@@ -268,17 +268,17 @@ AstCase *parse_case_clause(Parser *P) {
 
     expect_token(P, Token_Colon);
 
-    AstCase *c = ast_new<AstCase>();
+    CaseExpr *c = ast_new<CaseExpr>();
     c->expr = expr;
     c->is_default = expr == nullptr;
     c->token = token;
     return c;
 }
 
-AstIfExpr *parse_if_expr(Parser *P) {
+IfExpr *parse_if_expr(Parser *P) {
     Token token = expect_token(P, Token_If);
 
-    AstIfExpr *if_expr = ast_new<AstIfExpr>();
+    IfExpr *if_expr = ast_new<IfExpr>();
 
     Ast *prev_control = P->control_target;
     P->control_target = if_expr;
@@ -302,7 +302,7 @@ AstIfExpr *parse_if_expr(Parser *P) {
     if_expr->then_expr = then_expr;
     if_expr->token = token;
 
-    AstIfExpr *prev_if = if_expr;
+    IfExpr *prev_if = if_expr;
 
     while (is_token(P, Token_Else)) {
         Token e = expect_token(P, Token_Else);
@@ -316,7 +316,7 @@ AstIfExpr *parse_if_expr(Parser *P) {
 
         then_expr = parse_expr(P);
 
-        AstIfExpr *elif = ast_new<AstIfExpr>();
+        IfExpr *elif = ast_new<IfExpr>();
         elif->condition = condition;
         elif->then_expr = then_expr;
         elif->else_if = nullptr;
@@ -328,13 +328,13 @@ AstIfExpr *parse_if_expr(Parser *P) {
     return if_expr;
 }
 
-AstBlockExpr *parse_block_expr(Parser *P) {
+BlockExpr *parse_block_expr(Parser *P) {
     Token open = expect_token(P, Token_OpenBrace);
 
-    AstBlockExpr *block = ast_new<AstBlockExpr>();
+    BlockExpr *block = ast_new<BlockExpr>();
     block->open = open;
 
-    AstBlockExpr *prev_block = P->block;
+    BlockExpr *prev_block = P->block;
     P->block = block;
 
     int prev_expr_level = P->expr_level;
@@ -346,10 +346,10 @@ AstBlockExpr *parse_block_expr(Parser *P) {
             report_parser_error(P, "case expression in a non-if block");
         }
 
-        AstCase *clause_tail = nullptr;
+        CaseExpr *clause_tail = nullptr;
 
         while (!is_token(P, Token_CloseBrace)) {
-            AstCase *clause = parse_case_clause(P);
+            CaseExpr *clause = parse_case_clause(P);
             if (!clause) break;
 
             while (!is_token(P, Token_Case) && !is_token(P, Token_CloseBrace)) {
@@ -385,10 +385,10 @@ AstBlockExpr *parse_block_expr(Parser *P) {
     return block;
 }
 
-AstStarExpr *parse_star_expr(Parser *P) {
+StarExpr *parse_star_expr(Parser *P) {
     Token token = expect_token(P, Token_Star);
     Ast *elem = parse_type(P);
-    AstStarExpr *expr = ast_new<AstStarExpr>();
+    StarExpr *expr = ast_new<StarExpr>();
     expr->elem = elem;
     expr->token = token;
     return expr;
@@ -405,10 +405,10 @@ Ast *parse_type(Parser *P) {
     return expr;
 }
 
-AstProcType *parse_proc_type(Parser *P) {
+ProcTypeDefn *parse_proc_type(Parser *P) {
     Token open = expect_token(P, Token_OpenParen);
 
-    AstProcType *proc_type = ast_new<AstProcType>();
+    ProcTypeDefn *proc_type = ast_new<ProcTypeDefn>();
 
     bool named = false;
 
@@ -456,19 +456,19 @@ AstProcType *parse_proc_type(Parser *P) {
     return proc_type;
 }
 
-AstProcLit *ast_proc_lit(AstProcType *type, AstBlockExpr *body) {
-    AstProcLit *proc_lit = ast_new<AstProcLit>();
+ProcLit *ast_proc_lit(ProcTypeDefn *type, BlockExpr *body) {
+    ProcLit *proc_lit = ast_new<ProcLit>();
     proc_lit->proc_type = type;
     proc_lit->body = body;
     return proc_lit;
 }
 
-AstParenExpr *parse_paren_expr(Parser *P) {
+ParenExpr *parse_paren_expr(Parser *P) {
     Token open = expect_token(P, Token_OpenParen);
     Ast *elem = parse_expr(P);
     Token close = expect_token(P, Token_CloseParen);
 
-    AstParenExpr *paren = ast_new<AstParenExpr>();
+    ParenExpr *paren = ast_new<ParenExpr>();
     paren->expr = elem;
     paren->open = open;
     paren->close = close;
@@ -529,7 +529,7 @@ Ast *parse_operand(Parser *P) {
 
             Ast *elem = parse_type(P);
 
-            AstArrayType *type = ast_new<AstArrayType>();
+            ArrayTypeDefn *type = ast_new<ArrayTypeDefn>();
             type->size = size;
             type->elem = elem;
             type->open = open;
@@ -558,13 +558,13 @@ Ast *parse_operand(Parser *P) {
                 rewind(P, open);
             }
 
-            AstProcType *proc_type = nullptr;
+            ProcTypeDefn *proc_type = nullptr;
 
             if (is_type) {
                 proc_type = parse_proc_type(P);
 
                 if (is_token(P, Token_OpenBrace)) {
-                    AstBlockExpr *body = parse_block_expr(P);
+                    BlockExpr *body = parse_block_expr(P);
                     return ast_proc_lit(proc_type, body);
                 } else if (is_token(P, Token_UnInit)) {
                     return ast_proc_lit(proc_type, nullptr);
@@ -831,7 +831,7 @@ Ast *parse_simple_stmt(Parser *P) {
                 expect_token(P, Token_Semicolon);
             }
 
-            AstExprStmt *stmt = ast_new<AstExprStmt>();
+            ExprStmt *stmt = ast_new<ExprStmt>();
             stmt->expr = expr;
             return stmt;
         }
@@ -848,7 +848,7 @@ Ast *parse_stmt(Parser *P) {
 
         case Token_Semicolon: {
             Token token = expect_token(P, Token_Semicolon);
-            AstEmptyStmt *empty = ast_new<AstEmptyStmt>();
+            EmptyStmt *empty = ast_new<EmptyStmt>();
             empty->token = token;
             stmt = empty;
             break;
@@ -857,7 +857,7 @@ Ast *parse_stmt(Parser *P) {
         case Token_While: {
             Token token = expect_token(P, Token_While);
 
-            AstWhile *while_stmt = ast_new<AstWhile>();
+            WhileStmt *while_stmt = ast_new<WhileStmt>();
 
             int prev_expr_level = P->expr_level;
             P->expr_level = -1;
@@ -871,7 +871,7 @@ Ast *parse_stmt(Parser *P) {
             Ast *prev_control = P->control_target;
             P->control_target = while_stmt;
 
-            AstBlockExpr *block = parse_block_expr(P);
+            BlockExpr *block = parse_block_expr(P);
             while_stmt->block = block;
 
             P->control_target = prev_control;
@@ -883,12 +883,12 @@ Ast *parse_stmt(Parser *P) {
         case Token_Do: {
             Token token = expect_token(P, Token_Do);
 
-            AstDo *do_stmt = ast_new<AstDo>();
+            DoStmt *do_stmt = ast_new<DoStmt>();
 
             Ast *prev_control = P->control_target;
             P->control_target = do_stmt;
 
-            AstBlockExpr *block = parse_block_expr(P);
+            BlockExpr *block = parse_block_expr(P);
 
             expect_token(P, Token_While);
             Ast *condition = parse_expr(P);
@@ -904,7 +904,7 @@ Ast *parse_stmt(Parser *P) {
         case Token_For: {
             Token token = expect_token(P, Token_For);
 
-            AstFor *for_stmt = ast_new<AstFor>();
+            ForStmt *for_stmt = ast_new<ForStmt>();
 
             int prev_expr_level = P->expr_level;
             P->expr_level = -1;
@@ -917,7 +917,7 @@ Ast *parse_stmt(Parser *P) {
             Ast *prev_control = P->control_target;
             P->control_target = for_stmt;
 
-            AstBlockExpr *block = parse_block_expr(P);
+            BlockExpr *block = parse_block_expr(P);
 
             P->control_target = prev_control;
 
@@ -929,7 +929,7 @@ Ast *parse_stmt(Parser *P) {
 
         case Token_Break: {
             Token token = expect_token(P, Token_Break);
-            AstBreak *break_stmt = ast_new<AstBreak>();
+            BreakStmt *break_stmt = ast_new<BreakStmt>();
             break_stmt->token = token;
             stmt = break_stmt;
             break;
@@ -937,7 +937,7 @@ Ast *parse_stmt(Parser *P) {
 
         case Token_Continue: {
             Token token = expect_token(P, Token_Continue);
-            AstContinue *continue_stmt = ast_new<AstContinue>();
+            ContinueStmt *continue_stmt = ast_new<ContinueStmt>();
             continue_stmt->token = token;
             stmt = continue_stmt;
             break;
@@ -945,7 +945,7 @@ Ast *parse_stmt(Parser *P) {
 
         case Token_Fallthrough: {
             Token token = expect_token(P, Token_Fallthrough);
-            AstFallthrough *fallthrough_stmt = ast_new<AstFallthrough>();
+            FallthroughStmt *fallthrough_stmt = ast_new<FallthroughStmt>();
             fallthrough_stmt->token = token;
             stmt = fallthrough_stmt;
             break;
@@ -953,7 +953,7 @@ Ast *parse_stmt(Parser *P) {
 
         case Token_Return: {
             Token token = expect_token(P, Token_Return);
-            AstReturn *ret = ast_new<AstReturn>();
+            ReturnStmt *ret = ast_new<ReturnStmt>();
             Ast *expr = parse_expr(P);
             ret->expr = expr;
             ret->token = token;

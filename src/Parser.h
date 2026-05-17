@@ -32,7 +32,7 @@ struct Parser {
     bool allow_type = false;
 
     Ast *control_target = nullptr;
-    AstBlockExpr *block = nullptr;
+    BlockExpr *block = nullptr;
 };
 
 
@@ -90,40 +90,22 @@ inline void advance_line(Parser *P) {
     }
 }
 
-void init_parse_context(Parser *P, SourceFile *file);
-
 Token expect_token(Parser *P, TokenKind token);
 
-void parse(Parser *P);
 AstFile *parse_file(Parser *P, SourceFile *file);
-AstValueDecl *parse_decl(Parser *P);
-
-AstBlockExpr *parse_block_expr(Parser *P);
-Ast *parse_stmt(Parser *P);
-Ast *parse_simple_stmt(Parser *P);
-Ast *parse_expr_stmt(Parser *P);
 
 AstName *parse_name(Parser *P);
-Ast *parse_base_expr(Parser *P);
-Ast *parse_primary_expr(Parser *P);
-Ast *parse_unary_expr(Parser *P);
-Ast *parse_binary_expr(Parser *P, Ast *lhs, int precedence);
+Array<Ast*> parse_expr_list(Parser *P);
+BlockExpr *parse_block_expr(Parser *P);
 Ast *parse_expr(Parser *P);
 
+Ast *parse_stmt(Parser *P);
+Ast *parse_simple_stmt(Parser *P);
 
-AstIfExpr *parse_if_expr(Parser *P);
-
-Array<Ast*> parse_expr_list(Parser *P);
-Array<Ast*> parse_name_list(Parser *P);
-
-Ast *parse_type_defn(Parser *P);
-
-AstProcLit *parse_proc_lit(Parser *P);
-AstProcType *parse_proc_type(Parser *P);
-AstStructType *parse_struct_type(Parser *P);
+ProcTypeDefn *parse_proc_type(Parser *P);
+StructTypeDefn *parse_struct_type(Parser *P);
 
 Ast *parse_type(Parser *P);
 Ast *parse_operand(Parser *P);
 
-void init_global_parser();
 

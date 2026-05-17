@@ -20,24 +20,21 @@ enum AstKind {
     Ast_Error,
 
     Ast_File,
-    Ast_Name,
-    Ast_Param,
+
     Ast_ValueDecl,
-
-    Ast_EmptyStmt,
-    Ast_ExprStmt,
     Ast_Assign,
-
+    Ast_ExprStmt,
+    Ast_EmptyStmt,
+    Ast_Break,
+    Ast_Continue,
+    Ast_Fallthrough,
+    Ast_Return,
     Ast_Case,
     Ast_Do,
     Ast_While,
     Ast_For,
 
-    Ast_Break,
-    Ast_Continue,
-    Ast_Fallthrough,
-    Ast_Return,
-
+    Ast_Name,
     Ast_LiteralExpr,
     Ast_UnaryExpr,
     Ast_BinaryExpr,
@@ -50,13 +47,14 @@ enum AstKind {
     Ast_IfExpr,
     Ast_StarExpr,
 
+    Ast_ProcType,
+    Ast_ProcLit,
+    Ast_Param,
     Ast_ArrayType,
     Ast_StructType,
     Ast_UnionType,
     Ast_EnumType,
     Ast_Enumerator,
-    Ast_ProcType,
-    Ast_ProcLit,
 
     Ast_COUNT
 };
@@ -195,190 +193,190 @@ struct AstCallExpr : Ast {
     }
 };
 
-struct AstIfExpr : Ast {
+struct IfExpr : Ast {
     Ast *condition;
     Ast *then_expr = nullptr;
-    AstIfExpr *else_if = nullptr;
+    IfExpr *else_if = nullptr;
     Token token;
     bool is_ifcase = false;
 
-    AstIfExpr() {
+    IfExpr() {
         kind = Ast_IfExpr;
     }
 };
 
-struct AstParenExpr : Ast {
+struct ParenExpr : Ast {
     Ast *expr;
 
     Token open;
     Token close;
 
-    AstParenExpr() {
+    ParenExpr() {
         kind = Ast_ParenExpr;
     }
 };
 
-struct AstBlockExpr : Ast {
+struct BlockExpr : Ast {
     Array<Ast*> statements;
     bool is_ifcase = false;
     Ast *trailing = nullptr;
     Token open;
     Token close;
 
-    AstBlockExpr() {
+    BlockExpr() {
         kind = Ast_BlockExpr;
     }
 };
 
-struct AstStarExpr : Ast {
+struct StarExpr : Ast {
     Ast *elem;
     Token token;
 
-    AstStarExpr() {
+    StarExpr() {
         kind = Ast_StarExpr;
     }
 };
 
-struct AstEmptyStmt : Ast {
+struct EmptyStmt : Ast {
     Token token;
-    AstEmptyStmt() {
+    EmptyStmt() {
         kind = Ast_EmptyStmt;
     }
 };
 
-struct AstExprStmt : Ast {
+struct ExprStmt : Ast {
     Ast *expr;
-    AstExprStmt() {
+    ExprStmt() {
         kind = Ast_ExprStmt;
     }
 };
 
-struct AstCase : Ast {
+struct CaseExpr : Ast {
     Ast *expr;
     bool is_default;
     Array<Ast*> statements;
-    AstCase *prev_clause;
-    AstCase *next_clause;
+    CaseExpr *prev_clause;
+    CaseExpr *next_clause;
     Token token;
 
-    AstCase() {
+    CaseExpr() {
         kind = Ast_Case;
     }
 };
 
-struct AstWhile : Ast {
+struct WhileStmt : Ast {
     Ast *condition;
-    AstBlockExpr *block;
+    BlockExpr *block;
     Token token;
 
-    AstWhile() {
+    WhileStmt() {
         kind = Ast_While;
     }
 };
 
-struct AstDo : Ast {
+struct DoStmt : Ast {
     Ast *condition;
-    AstBlockExpr *block;
+    BlockExpr *block;
     Token token;
 
-    AstDo() {
+    DoStmt() {
         kind = Ast_Do;
     }
 };
 
-struct AstFor : Ast {
+struct ForStmt : Ast {
     Ast *condition;
-    AstBlockExpr *block;
+    BlockExpr *block;
     Token token;
 
-    AstFor() {
+    ForStmt() {
         kind = Ast_For;
     }
 };
 
-struct AstContinue : Ast {
+struct ContinueStmt : Ast {
     Token token;
 
-    AstContinue() {
+    ContinueStmt() {
         kind = Ast_Continue;
     }
 };
 
-struct AstBreak : Ast {
+struct BreakStmt : Ast {
     Token token;
 
-    AstBreak() {
+    BreakStmt() {
         kind = Ast_Break;
     }
 };
 
-struct AstFallthrough : Ast {
+struct FallthroughStmt : Ast {
     Token token;
 
-    AstFallthrough() {
+    FallthroughStmt() {
         kind = Ast_Fallthrough;
     }
 };
 
 
-struct AstReturn : Ast {
+struct ReturnStmt : Ast {
     Ast *expr;
     Token token;
 
-    AstReturn() {
+    ReturnStmt() {
         kind = Ast_Return;
     }
 };
 
-struct AstProcType : Ast {
+struct ProcTypeDefn : Ast {
     Array<AstParam*> params;
     Ast *return_type;
 
-    AstProcType() {
+    ProcTypeDefn() {
         kind = Ast_ProcType;
     }
 };
 
-struct AstArrayType : Ast {
+struct ArrayTypeDefn : Ast {
     Ast *elem;
     Ast *size;
     bool dynamic;
     Token open;
     Token close;
 
-    AstArrayType() {
+    ArrayTypeDefn() {
         kind = Ast_ArrayType;
     }
 };
 
-struct AstStructType : Ast {
+struct StructTypeDefn : Ast {
     Array<Ast*> members;
 
     Token token;
     Token open;
     Token close;
 
-    AstStructType() {
+    StructTypeDefn() {
         kind = Ast_StructType;
     }
 };
 
-struct AstUnionType : Ast {
+struct UnionTypeDefn : Ast {
     Array<Ast*> members;
 
-    AstUnionType() {
+    UnionTypeDefn() {
         kind = Ast_UnionType;
     }
 };
 
-struct AstEnumType : Ast {
+struct EnumTypeDefn : Ast {
     Array<Ast*> members;
 
     Token token;
     Token open;
     Token close;
 
-    AstEnumType() {
+    EnumTypeDefn() {
         kind = Ast_EnumType;
     }
 };
@@ -392,20 +390,19 @@ struct Enumerator : Ast {
     }
 };
 
-struct AstProcLit : Ast {
-    AstProcType *proc_type;
+struct ProcLit : Ast {
+    ProcTypeDefn *proc_type;
     Ast *body;
 
-    AstProcLit() {
+    ProcLit() {
         kind = Ast_ProcLit;
     }
 };
 
-
-
-void ast_print(Ast *node);
+template <typename T> T *ast_new();
 
 void *ast_alloc(int bytes);
+void ast_print(Ast *node);
 
 template <typename T>
 T *ast_new() {
@@ -413,7 +410,6 @@ T *ast_new() {
     *node = T();
     return node;
 }
-
 
 String string_from_token(TokenKind token);
 String string_from_operator(Operator op);

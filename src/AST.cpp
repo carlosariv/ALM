@@ -19,6 +19,7 @@ void *ast_alloc(int bytes) {
     return mem;
 }
 
+
 void tab_begin() {
     tab_width += 1;
 }
@@ -71,7 +72,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_ProcType: {
-            AstProcType *proc_type = static_cast<AstProcType*>(node);
+            ProcTypeDefn *proc_type = static_cast<ProcTypeDefn*>(node);
             ast_out("(");
             for (AstParam *param : proc_type->params) {
                 ast_print(param);
@@ -88,7 +89,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_ProcLit: {
-            AstProcLit *proc_lit = static_cast<AstProcLit*>(node);
+            ProcLit *proc_lit = static_cast<ProcLit*>(node);
             ast_print(proc_lit->proc_type);
 
             tab_begin();
@@ -230,7 +231,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_ParenExpr: {
-            AstParenExpr *p = static_cast<AstParenExpr*>(node);
+            ParenExpr *p = static_cast<ParenExpr*>(node);
             ast_out("(");
             ast_print(p->expr);
             ast_out(")");
@@ -238,7 +239,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_IfExpr: {
-            AstIfExpr *if_expr = static_cast<AstIfExpr*>(node);
+            IfExpr *if_expr = static_cast<IfExpr*>(node);
             if (if_expr->condition) {
                 ast_out("(if ");
                 ast_out("(");
@@ -257,7 +258,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_BlockExpr: {
-            AstBlockExpr *block = static_cast<AstBlockExpr*>(node);
+            BlockExpr *block = static_cast<BlockExpr*>(node);
             ast_out("(block \n");
             tab_begin();
             for (Ast *stmt : block->statements) {
@@ -270,7 +271,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_ExprStmt: {
-            AstExprStmt *stmt = static_cast<AstExprStmt*>(node);
+            ExprStmt *stmt = static_cast<ExprStmt*>(node);
             ast_out("(expr \n");
             ast_print(stmt->expr);
             ast_out(")\n");
@@ -296,7 +297,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_Return: {
-            AstReturn *ret = static_cast<AstReturn*>(node);
+            ReturnStmt *ret = static_cast<ReturnStmt*>(node);
             ast_out("(return");
             if (ret->expr) {
                 ast_out(" ");
@@ -307,7 +308,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_StarExpr: {
-            AstStarExpr *star = static_cast<AstStarExpr*>(node);
+            StarExpr *star = static_cast<StarExpr*>(node);
             ast_out("(* ");
             ast_print(star->elem);
             ast_out(")");
@@ -315,7 +316,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_EnumType: {
-            AstEnumType *et = static_cast<AstEnumType*>(node);
+            EnumTypeDefn *et = static_cast<EnumTypeDefn*>(node);
             ast_out("(enum \n");
             for (Ast *m : et->members) {
                 ast_print(m);
@@ -338,7 +339,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_ArrayType: {
-            AstArrayType *type = static_cast<AstArrayType*>(node);
+            ArrayTypeDefn *type = static_cast<ArrayTypeDefn*>(node);
             ast_out("[");
             if (type->dynamic) {
                 ast_out("..");
@@ -351,7 +352,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_StructType: {
-            AstStructType *type = static_cast<AstStructType*>(node);
+            StructTypeDefn *type = static_cast<StructTypeDefn*>(node);
             ast_out("struct (");
             for (Ast *member : type->members) {
                 ast_print(member);
@@ -361,7 +362,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_UnionType: {
-            AstUnionType *type = static_cast<AstUnionType*>(node);
+            UnionTypeDefn *type = static_cast<UnionTypeDefn*>(node);
             ast_out("struct (");
             for (Ast *member : type->members) {
                 ast_print(member);
@@ -371,7 +372,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_Do: {
-            AstDo *d = static_cast<AstDo*>(node);
+            DoStmt *d = static_cast<DoStmt*>(node);
             ast_out("(do\n");
             ast_print(d->block);
             ast_out(") (");
@@ -381,7 +382,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_While: {
-            AstWhile *d = static_cast<AstWhile*>(node);
+            WhileStmt *d = static_cast<WhileStmt*>(node);
             ast_out("(while\n");
             ast_out("(");
             ast_print(d->condition);
@@ -391,7 +392,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_For: {
-            AstFor *f = static_cast<AstFor*>(node);
+            ForStmt *f = static_cast<ForStmt*>(node);
             ast_out("(for\n");
             ast_out("(");
             ast_print(f->condition);
@@ -401,7 +402,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_Case: {
-            AstCase *c = static_cast<AstCase*>(node);
+            CaseExpr *c = static_cast<CaseExpr*>(node);
             ast_out("(case ");
             if (c->expr) {
                 ast_out("(");
