@@ -109,6 +109,15 @@ X(Operator_BitwiseOr, "|") \
 X(Operator_And, "&&") \
 X(Operator_Or, "||") \
 X(Operator_Cast, "cast") \
+X(Operator_Assign, "=") \
+X(Operator_AddAssign, "+=") \
+X(Operator_SubAssign, "-=") \
+X(Operator_MultAssign, "*=") \
+X(Operator_DivAssign, "/=") \
+X(Operator_AndAssign, "&=") \
+X(Operator_OrAssign, "|=") \
+X(Operator_XorAssign, "^=") \
+X(Operator_ModAssign, "%=") \
 
 
 #define X(K,S) K,

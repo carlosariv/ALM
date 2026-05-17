@@ -41,6 +41,7 @@ enum AstKind {
     Ast_LiteralExpr,
     Ast_UnaryExpr,
     Ast_BinaryExpr,
+    Ast_SelectorExpr,
     Ast_SubscriptExpr,
     Ast_CallExpr,
     Ast_ParenExpr,
@@ -101,6 +102,8 @@ struct AstValueDecl : Ast {
 struct AstAssign : Ast {
     Array<Ast*> lhs;
     Array<Ast*> rhs;
+    Token token;
+    Operator op;
 
     AstAssign() {
         kind = Ast_Assign;
@@ -159,6 +162,16 @@ struct AstCompoundLiteral : Ast {
 
     AstCompoundLiteral() {
         kind = Ast_CompoundLiteral;
+    }
+};
+
+struct AstSelectorExpr : Ast {
+    Ast *operand;
+    AstName *name;
+    Token token;
+
+    AstSelectorExpr() {
+        kind = Ast_SelectorExpr;
     }
 };
 

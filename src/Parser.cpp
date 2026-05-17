@@ -43,21 +43,7 @@ void report_parser_error(Parser *P, std::format_string<Args...> fmt, Args&&... a
     std::println(fmt, std::forward<Args>(args)...);
 }
 
-void rewind(Parser *P, Token token) {
-    P->current_token = token;
-    P->current_line = token.end.line;
-    P->current_col = token.end.col;
-    P->stream_index = token.end.index;
-    P->stream = P->current_file->content.text + P->stream_index;
-}
-
-AstBlockExpr *parse_block_expr(Parser *P);
-Ast *parse_stmt(Parser *P);
-Ast *parse_simple_stmt(Parser *P);
-
-Array<Ast*> parse_name_list(Parser *P);
-
-AstProcLit *parse_proc_lit(Parser *P);
+void rewind(Parser *P, Token token);
 
 Operator unary_operator_from_token(TokenKind token) {
     switch (token) {
@@ -72,23 +58,86 @@ Operator unary_operator_from_token(TokenKind token) {
     }
 }
 
-int to_digit(char c) {
-    switch (c) {
+Operator get_assign_operator(TokenKind token) {
+    switch (token) {
+        case Token_Assign: return Operator_Assign;
+        case Token_PlusAssign: return Operator_AddAssign;
+        case Token_MinusAssign: return Operator_SubAssign;
+        case Token_MulAssign: return Operator_MultAssign;
+        case Token_DivAssign: return Operator_DivAssign;
+        case Token_AndAssign: return Operator_AndAssign;
+        case Token_OrAssign: return Operator_OrAssign;
+        case Token_XorAssign: return Operator_XorAssign;
+        case Token_ModAssign: return Operator_ModAssign;
+        default: return Operator_Nil;
+    }
+}
+
+Operator get_binary_op(TokenKind token) {
+    switch (token) {
+        default: return Operator_Nil;
+        case Token_Plus: return Operator_Add;
+        case Token_Minus: return Operator_Sub;
+        case Token_Star: return Operator_Mult;
+        case Token_Slash: return Operator_Div;
+        case Token_Percent: return Operator_Mod;
+        case Token_Equal: return Operator_Equal;
+        case Token_NotEqual: return Operator_NotEqual;
+        case Token_Less: return Operator_Less;
+        case Token_Greater: return Operator_Greater;
+        case Token_LessEqual: return Operator_LessEqual;
+        case Token_GreaterEqual: return Operator_GreaterEqual;
+        case Token_And: return Operator_And;
+        case Token_Or: return Operator_Or;
+        case Token_Bar: return Operator_BitwiseOr;
+        case Token_Ampersand: return Operator_BitwiseAnd;
+        case Token_LeftShift: return Operator_LeftShift;
+        case Token_RightShift: return Operator_RightShift;
+    }
+}
+
+int get_op_prec(Operator op) {
+    switch (op) {
+        case Operator_Mult:
+        case Operator_Div:
+        case Operator_Mod:
+            return 11000;
+
+        case Operator_Add:
+        case Operator_Sub:
+            return 10000;
+
+        case Operator_Less:
+        case Operator_Greater:
+        case Operator_LessEqual:
+        case Operator_GreaterEqual:
+            return 9000;
+
+        case Operator_Equal:
+        case Operator_NotEqual:
+            return 8000;
+
+        case Operator_BitwiseAnd:
+            return 7000;
+        case Operator_Xor:
+            return 6000;
+        case Operator_BitwiseOr:
+            return 5000;
+
+        case Operator_And:
+            return 4000;
+        case Operator_Or:
+            return 3000;
+        case Operator_LeftShift:
+        case Operator_RightShift:
+            return 2000;
+
         default:
             return -1;
-        case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n': case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u': case 'v': case 'w': case 'x': case 'y': case 'z':
-            return c - 'a' + 10;
-        case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z':
-            return c - 'A' + 10;
-        case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
-            return c - '0';
     }
 }
 
 
-Token get_token(Parser *P) {
-    return P->current_token;
-}
 
 Token expect_token(Parser *P, TokenKind token) {
     if (is_token(P, token)) {
@@ -109,9 +158,6 @@ void init_parser_context(Parser *P, SourceFile *file) {
     P->stream = file->content.text;
     P->current_token = {};
     next_token(P);
-}
-
-void parse(Parser *P) {
 }
 
 AstName *parse_name(Parser *P) {
@@ -241,7 +287,8 @@ AstIfExpr *parse_if_expr(Parser *P) {
     P->expr_level = -1;
     Ast *condition = parse_expr(P);
 
-    if (match_token(P, Token_Of)) {
+    if (match_token(P, Token_Then)) {
+    } else if (match_token(P, Token_Of)) {
         if_expr->is_ifcase = true;
     }
 
@@ -578,6 +625,20 @@ AstSubscriptExpr *parse_subscript_expr(Parser *P, Ast *operand) {
     return sub;
 }
 
+AstSelectorExpr *parse_selector_expr(Parser *P, Ast *operand) {
+    Token token = expect_token(P, Token_Dot);
+    AstName *name = parse_name(P);
+    if (!name) {
+        report_parser_error(P, "expected 'name' after '.'");
+    }
+
+    AstSelectorExpr *se = ast_new<AstSelectorExpr>();
+    se->operand = operand;
+    se->name = name;
+    se->token = token;
+    return se;
+}
+
 AstCompoundLiteral *parse_compound_literal(Parser *P, Ast *operand) {
     Token open = expect_token(P, Token_OpenBrace);
 
@@ -602,6 +663,11 @@ Ast *parse_primary_expr(Parser *P, Ast *operand) {
             default:
                 loop = false;
                 break;
+
+            case Token_Dot: {
+                operand = parse_selector_expr(P, operand);
+                break;
+            }
 
             case Token_OpenParen: {
                 Token open = expect_token(P, Token_OpenParen);
@@ -652,88 +718,6 @@ Ast *parse_unary_expr(Parser *P) {
             unary->token = token;
             return unary;
         }
-    }
-}
-
-Operator get_binary_op(TokenKind token) {
-    switch (token) {
-        default:
-            return Operator_Nil;
-        case Token_Plus:
-            return Operator_Add;
-        case Token_Minus:
-            return Operator_Sub;
-        case Token_Star:
-            return Operator_Mult;
-        case Token_Slash:
-            return Operator_Div;
-        case Token_Percent:
-            return Operator_Mod;
-        case Token_Equal:
-            return Operator_Equal;
-        case Token_NotEqual:
-            return Operator_NotEqual;
-        case Token_Less:
-            return Operator_Less;
-        case Token_Greater:
-            return Operator_Greater;
-        case Token_LessEqual:
-            return Operator_LessEqual;
-        case Token_GreaterEqual:
-            return Operator_GreaterEqual;
-        case Token_And:
-            return Operator_And;
-        case Token_Or:
-            return Operator_Or;
-        case Token_Bar:
-            return Operator_BitwiseOr;
-        case Token_Ampersand:
-            return Operator_BitwiseAnd;
-        case Token_LeftShift:
-            return Operator_LeftShift;
-        case Token_RightShift:
-            return Operator_RightShift;
-    }
-}
-
-int get_op_prec(Operator op) {
-    switch (op) {
-        default:
-            return -1;
-
-        case Operator_Mult:
-        case Operator_Div:
-        case Operator_Mod:
-            return 11000;
-
-        case Operator_Add:
-        case Operator_Sub:
-            return 10000;
-
-        case Operator_Less:
-        case Operator_Greater:
-        case Operator_LessEqual:
-        case Operator_GreaterEqual:
-            return 9000;
-
-        case Operator_Equal:
-        case Operator_NotEqual:
-            return 8000;
-
-        case Operator_BitwiseAnd:
-            return 7000;
-        case Operator_Xor:
-            return 6000;
-        case Operator_BitwiseOr:
-            return 5000;
-
-        case Operator_And:
-            return 4000;
-        case Operator_Or:
-            return 3000;
-        case Operator_LeftShift:
-        case Operator_RightShift:
-            return 2000;
     }
 }
 
@@ -789,6 +773,10 @@ Ast *parse_expr(Parser *P) {
     return parse_binary_expr(P, lhs, 0);
 }
 
+bool is_assign_token(TokenKind token) {
+    return token > Token_Assign_Begin && token < Token_Assign_End;
+}
+
 Ast *parse_simple_stmt(Parser *P) {
     Array<Ast*> lhs = parse_expr_list(P);
 
@@ -822,11 +810,14 @@ Ast *parse_simple_stmt(Parser *P) {
             expect_token(P, Token_Semicolon);
         }
         return vd;
-    } else if (match_token(P, Token_Assign)) {
+    } else if (is_assign_token(peek_token(P))) {
+        Token token = next_token(P);
         rhs = parse_expr_list(P);
         AstAssign *assign = ast_new<AstAssign>();
         assign->lhs = lhs;
         assign->rhs = rhs;
+        assign->token = token;
+        assign->op = get_assign_operator(token.kind);
         expect_token(P, Token_Semicolon);
         return assign;
     } else {
@@ -979,6 +970,31 @@ Ast *parse_stmt(Parser *P) {
             break;
     }
     return stmt;
+}
+
+int to_digit(char c) {
+    switch (c) {
+        default:
+            return -1;
+        case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n': case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u': case 'v': case 'w': case 'x': case 'y': case 'z':
+            return c - 'a' + 10;
+        case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z':
+            return c - 'A' + 10;
+        case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+            return c - '0';
+    }
+}
+
+void rewind(Parser *P, Token token) {
+    P->current_token = token;
+    P->current_line = token.end.line;
+    P->current_col = token.end.col;
+    P->stream_index = token.end.index;
+    P->stream = P->current_file->content.text + P->stream_index;
+}
+
+Token get_token(Parser *P) {
+    return P->current_token;
 }
 
 void advance_char(Parser *P) {

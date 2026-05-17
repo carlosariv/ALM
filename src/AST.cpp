@@ -202,6 +202,16 @@ void ast_print(Ast *node) {
             break;
         }
 
+        case Ast_SelectorExpr: {
+            AstSelectorExpr *se = static_cast<AstSelectorExpr*>(node);
+            ast_out("(. ");
+            ast_print(se->operand);
+            ast_out(" ");
+            ast_print(se->name);
+            ast_out(")");
+            break;
+        }
+
         case Ast_CallExpr: {
             AstCallExpr *call = static_cast<AstCallExpr*>(node);
             ast_out("(call ");
