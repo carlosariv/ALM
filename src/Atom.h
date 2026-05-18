@@ -27,7 +27,7 @@ struct Atomizer {
 
 extern Atomizer *atomizer;
 
-
 void atomizer_init();
 Atom *atom_create(String string);
 Atom *atom_create(char *str, usize len);
+String get_string(Atom *atom);
