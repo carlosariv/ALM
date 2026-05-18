@@ -10,6 +10,7 @@ namespace fs = std::filesystem;
 #include "Array.h"
 #include "ALM.h"
 #include "Parser.h"
+#include "Resolve.h"
 
 template<typename... Args>
 void simple_wrapper_println(std::format_string<Args...> fmt, Args&&... args) {
@@ -63,11 +64,19 @@ int main(int argc, char **argv) {
         }
     }
 
+    Array<AstFile*> ast_files;
+
     for (SourceFile *file : parser.files) {
         AstFile *ast_file = parse_file(&parser, file);
+        ast_files.add(ast_file);
         if (opts.dump_ast) {
             ast_print(ast_file);
         }
+    }
+
+    Resolver *resolver = new Resolver();
+    for (AstFile *file : ast_files) {
+        resolve_file(resolver, file);
     }
 
     return 0;

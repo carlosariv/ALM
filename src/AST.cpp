@@ -160,7 +160,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_LiteralExpr: {
-            AstLiteralExpr *literal = static_cast<AstLiteralExpr*>(node);
+            LiteralExpr *literal = static_cast<LiteralExpr*>(node);
             switch (literal->literal_kind) {
                 case Literal_Integer:
                     ast_out("{}", literal->integer_value);
@@ -169,7 +169,7 @@ void ast_print(Ast *node) {
                     ast_out("{}", literal->float_value);
                     break;
                 case Literal_String:
-                    ast_out("\"{}\"", (char *)literal->string_value.text);
+                    ast_out("\"{}\"", literal->string_value);
                     break;
             }
             break;

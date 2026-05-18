@@ -489,7 +489,7 @@ Ast *parse_operand(Parser *P) {
         case Token_Integer: {
             next_token(P);
 
-            AstLiteralExpr *expr = ast_new<AstLiteralExpr>();
+            LiteralExpr *expr = ast_new<LiteralExpr>();
             expr->literal_kind = Literal_Integer;
             expr->integer_value = token.integer_value;
             expr->token = token;
@@ -499,7 +499,7 @@ Ast *parse_operand(Parser *P) {
         case Token_Floating: {
             next_token(P);
 
-            AstLiteralExpr *expr = ast_new<AstLiteralExpr>();
+            LiteralExpr *expr = ast_new<LiteralExpr>();
             expr->literal_kind = Literal_Floating;
             expr->float_value = token.float_value;
             expr->token = token;
@@ -510,7 +510,7 @@ Ast *parse_operand(Parser *P) {
         case Token_String: {
             next_token(P);
 
-            AstLiteralExpr *expr = ast_new<AstLiteralExpr>();
+            LiteralExpr *expr = ast_new<LiteralExpr>();
             expr->literal_kind = Literal_String;
             expr->string_value = token.string_value;
             expr->token = token;
@@ -985,12 +985,16 @@ int to_digit(char c) {
     }
 }
 
+void rewind_to(Parser *P, SourcePos pos) {
+    P->current_line = pos.line;
+    P->current_col = pos.col;
+    P->stream_index = pos.index;
+    P->stream = P->current_file->content.text + P->stream_index;
+}
+
 void rewind(Parser *P, Token token) {
     P->current_token = token;
-    P->current_line = token.end.line;
-    P->current_col = token.end.col;
-    P->stream_index = token.end.index;
-    P->stream = P->current_file->content.text + P->stream_index;
+    rewind_to(P, token.end);
 }
 
 Token get_token(Parser *P) {
@@ -1019,6 +1023,16 @@ void advance_char(Parser *P) {
     }
 
     P->stream = P->current_file->content.text + P->stream_index;
+}
+
+f64 scan_floating(Parser *P) {
+    char *end = (char *)P->stream;
+    f64 val = strtod((char *)P->stream, &end);
+    int len = end - (char *)P->stream;
+    P->stream = (u8 *)end;
+    P->current_col += len;
+    P->stream_index += len;
+    return val;
 }
 
 Token next_token(Parser *P) {
@@ -1069,14 +1083,17 @@ scan_begin:
 
         case '.':
             advance_char(P);
-            if (peek_char(P) == '.') {
-                advance_char(P);
-                tok.kind = Token_Ellipsis;
-            } else if (peek_char(P) == '*') {
-                advance_char(P);
-                tok.kind = Token_DotStar;
-            } else {
-                tok.kind = Token_Dot;
+            switch (peek_char(P)) {
+                default: tok.kind = Token_Dot; break;
+                case '.': tok.kind = Token_Ellipsis; break;
+                case '*': tok.kind = Token_DotStar; break;
+                case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
+                    rewind_to(P, tok.start);
+                    f64 f = scan_floating(P);
+                    tok.kind = Token_Floating;
+                    tok.float_value = f;
+                    break;
+                }
             }
             break;
 
@@ -1205,18 +1222,48 @@ scan_begin:
         }
 
         case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
-            int base = 10;
             u64 value = 0;
+            int base = 10;
+
+            if (peek_char(P) == '0') {
+                advance_char(P);
+
+                char c = toupper(peek_char(P));
+                switch (c) {
+                    case 'B':
+                        base = 2;
+                        advance_char(P);
+                        break;
+                    case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+                        base = 8;
+                        advance_char(P);
+                        break;
+                    case 'X':
+                        base = 16;
+                        advance_char(P);
+                        break;
+                }
+            }
+
             while (isalnum(peek_char(P))) {
                 int digit = to_digit(peek_char(P));
-                if (digit == -1) break;
+                if (digit > base - 1) {
+                    report_parser_error(P, "digit greater than base of integer literal");
+                    break;
+                }
 
                 value = value * base + digit;
                 advance_char(P);
             }
 
-            tok.kind = Token_Integer;
-            tok.integer_value = value;
+            if (peek_char(P) == '.') {
+                f64 f = scan_floating(P);
+                tok.kind = Token_Floating;
+                tok.float_value = value + f;
+            } else {
+                tok.kind = Token_Integer;
+                tok.integer_value = value;
+            }
             break;
         }
 

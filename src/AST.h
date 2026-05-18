@@ -8,6 +8,7 @@
 
 struct Ast;
 struct Type;
+struct Symbol;
 
 enum LiteralKind {
     Literal_Integer,
@@ -81,6 +82,8 @@ struct AstFile : Ast {
 struct AstName : Ast {
     Atom *name;
     Token token;
+    Symbol *symbol = nullptr;
+
     AstName() {
         kind = Ast_Name;
     }
@@ -117,7 +120,7 @@ struct AstParam : Ast {
     }
 };
 
-struct AstLiteralExpr : Ast {
+struct LiteralExpr : Ast {
     LiteralKind literal_kind;
     union {
         String string_value;
@@ -126,7 +129,7 @@ struct AstLiteralExpr : Ast {
     };
     Token token;
 
-    AstLiteralExpr() {
+    LiteralExpr() {
         kind = Ast_LiteralExpr;
     }
 };
