@@ -39,6 +39,7 @@ int main(int argc, char **argv) {
     // simple_wrapper_println("\x1b[31mHello, Red!\x1b[0m");
 
     CommandLineOpts opts;
+
     process_command_line_args(&opts, std::span(argv + 1, argc - 1));
 
     atomizer_init();

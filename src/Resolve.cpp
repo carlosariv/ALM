@@ -4,6 +4,7 @@
 #include "Atom.h"
 #include "Ast.h"
 #include "Resolve.h"
+#include "Report.h"
 
 
 //NOTE: Use for hasing atoms
@@ -14,12 +15,6 @@
 //     x = x ^ (x >> 31);
 //     return x;
 // }
-
-template<typename... Args>
-void report_error(Ast *node, std::format_string<Args...> fmt, Args&&... args) {
-    std::print("error: ");
-    std::println(fmt, std::forward<Args>(args)...);
-}
 
 void resolve_name(Resolver *R, AstName *name) {
 }
@@ -62,6 +57,7 @@ Symbol *symbol_create(Resolver *R) {
 void resolve_value_decl(Resolver *R, AstValueDecl *vd) {
     for (Ast *expr : vd->lhs) {
         assert(expr->kind == Ast_Name);
+
         AstName *name = static_cast<AstName*>(expr);
 
         Symbol *lookup = symbol_find(R, name->name);
@@ -83,9 +79,10 @@ void resolve_value_decl(Resolver *R, AstValueDecl *vd) {
         resolve_expr(R, vd->type_defn);
 
         for (Ast *rhs : vd->rhs) {
-            // if (!type_check(vd->type_defn->type, rhs->type)) {
-            //     report_error(R, "Types do not match");
-            // }
+            // if (!type_check(vd->type_defn->type, rhs->type))
+            if (vd->type_defn->type == rhs->type) {
+                report_error(rhs, "type of expression does not match");
+            }
         }
     }
 }

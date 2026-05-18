@@ -19,7 +19,6 @@ void *ast_alloc(int bytes) {
     return mem;
 }
 
-
 void tab_begin() {
     tab_width += 1;
 }
@@ -431,3 +430,5 @@ void ast_print(Ast *node) {
         }
     }
 }
+
+

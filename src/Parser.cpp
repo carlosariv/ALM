@@ -6,6 +6,7 @@
 #include "String.h"
 #include "Token.h"
 #include "Parser.h"
+#include "Report.h"
 
 #define X(K,S) STRZ(S),
 String g_token_strings[Token_COUNT] = {
@@ -36,12 +37,6 @@ std::unordered_map<String, TokenKind, StringHasher> keyword_map = [] {
     }
     return m;
 }();
-
-template<typename... Args>
-void report_parser_error(Parser *P, std::format_string<Args...> fmt, Args&&... args) {
-    std::print("syntax error: {},{}: ", P->current_line, P->current_col);
-    std::println(fmt, std::forward<Args>(args)...);
-}
 
 void rewind(Parser *P, Token token);
 
@@ -786,6 +781,12 @@ Ast *parse_simple_stmt(Parser *P) {
     if (match_token(P, Token_Colon)) {
         Ast *type_defn = nullptr;
         bool is_constant = false;
+
+        for (Ast *name : lhs) {
+            if (name->kind != Ast_Name) {
+                report_parser_error(P, "left hand side of value declaration must be identifiers");
+            }
+        }
 
         if (match_token(P, Token_Colon)) {
             // compile-time constant

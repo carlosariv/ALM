@@ -190,6 +190,8 @@ struct AstSubscriptExpr : Ast {
 struct AstCallExpr : Ast {
     Ast *operand;
     Array<Ast*> arguments;
+    Token open;
+    Token close;
 
     AstCallExpr() {
         kind = Ast_CallExpr;
@@ -334,6 +336,8 @@ struct ReturnStmt : Ast {
 struct ProcTypeDefn : Ast {
     Array<AstParam*> params;
     Ast *return_type;
+    Token open;
+    Token close;
 
     ProcTypeDefn() {
         kind = Ast_ProcType;
@@ -402,10 +406,7 @@ struct ProcLit : Ast {
     }
 };
 
-template <typename T> T *ast_new();
-
 void *ast_alloc(int bytes);
-void ast_print(Ast *node);
 
 template <typename T>
 T *ast_new() {
@@ -414,6 +415,6 @@ T *ast_new() {
     return node;
 }
 
+void ast_print(Ast *node);
 String string_from_token(TokenKind token);
 String string_from_operator(Operator op);
-
