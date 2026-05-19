@@ -10,7 +10,9 @@ String make_string(u8 *text, isize len) {
     String string;
     string.len = len;
     string.text = (u8 *)malloc((len + 1) * sizeof(u8));
-    std::memcpy(string.text, text, len);
+    if (len > 0) {
+        std::memcpy(string.text, text, len);
+    }
     string.text[len] = 0;
     return string;
 }

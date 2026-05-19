@@ -13,6 +13,7 @@
 #include "AST.h"
 
 struct SourceFile {
+    String absolute_path;
     String path;
     String filename;
     String content;
@@ -94,7 +95,7 @@ Token expect_token(Parser *P, TokenKind token);
 
 AstFile *parse_file(Parser *P, SourceFile *file);
 
-AstName *parse_name(Parser *P);
+Ident *parse_name(Parser *P);
 Array<Ast*> parse_expr_list(Parser *P);
 BlockExpr *parse_block_expr(Parser *P);
 Ast *parse_expr(Parser *P);

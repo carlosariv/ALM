@@ -64,8 +64,8 @@ void ast_print(Ast *node) {
             break;
         }
 
-        case Ast_Name: {
-            AstName *name = static_cast<AstName*>(node);
+        case Ast_Ident: {
+            Ident *name = static_cast<Ident*>(node);
             ast_out("{}", (char *)(name->name->text));
             break;
         }
@@ -73,7 +73,7 @@ void ast_print(Ast *node) {
         case Ast_ProcType: {
             ProcTypeDefn *proc_type = static_cast<ProcTypeDefn*>(node);
             ast_out("(");
-            for (AstParam *param : proc_type->params) {
+            for (Param *param : proc_type->params) {
                 ast_print(param);
             }
             ast_out(")");
@@ -99,7 +99,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_ValueDecl: {
-            AstValueDecl *decl = static_cast<AstValueDecl*>(node);
+            ValueDecl *decl = static_cast<ValueDecl*>(node);
             ast_out("(decl ");
             for (Ast *name : decl->lhs) {
                 ast_print(name);
@@ -124,7 +124,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_CompoundLiteral: {
-            AstCompoundLiteral *cl = static_cast<AstCompoundLiteral*>(node);
+            CompoundLiteralExpr *cl = static_cast<CompoundLiteralExpr*>(node);
             ast_out("(compound ");
             for (Ast *init :  cl->initializer_list) {
                 ast_print(init);
@@ -134,7 +134,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_Param: {
-            AstParam *param = static_cast<AstParam*>(node);
+            Param *param = static_cast<Param*>(node);
             ast_out("(");
             for (Ast *name : param->lhs) {
                 ast_print(name);
@@ -175,7 +175,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_UnaryExpr: {
-            AstUnaryExpr *unary = static_cast<AstUnaryExpr*>(node);
+            UnaryExpr *unary = static_cast<UnaryExpr*>(node);
             ast_out("({} ", string_from_operator(unary->op));
             ast_print(unary->operand);
             ast_out(")");
@@ -183,7 +183,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_BinaryExpr: {
-            AstBinaryExpr *binary = static_cast<AstBinaryExpr*>(node);
+            BinaryExpr *binary = static_cast<BinaryExpr*>(node);
             ast_out("({} ", string_from_operator(binary->op));
             ast_print(binary->lhs);
             ast_out(" ");
@@ -193,7 +193,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_SubscriptExpr: {
-            AstSubscriptExpr *subscript = static_cast<AstSubscriptExpr*>(node);
+            SubscriptExpr *subscript = static_cast<SubscriptExpr*>(node);
             ast_out("(subscript ");
             ast_print(subscript->operand);
             ast_out(" ");
@@ -203,7 +203,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_SelectorExpr: {
-            AstSelectorExpr *se = static_cast<AstSelectorExpr*>(node);
+            SelectorExpr *se = static_cast<SelectorExpr*>(node);
             ast_out("(. ");
             ast_print(se->operand);
             ast_out(" ");
@@ -213,7 +213,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_CallExpr: {
-            AstCallExpr *call = static_cast<AstCallExpr*>(node);
+            CallExpr *call = static_cast<CallExpr*>(node);
             ast_out("(call ");
             ast_print(call->operand);
 
@@ -278,7 +278,7 @@ void ast_print(Ast *node) {
         }
 
         case Ast_Assign: {
-            AstAssign *assign = static_cast<AstAssign*>(node);
+            AssignStmt *assign = static_cast<AssignStmt*>(node);
             ast_out("(= \n");
             for (Ast *expr : assign->lhs) {
                 ast_print(expr);

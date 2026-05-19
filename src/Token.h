@@ -4,6 +4,7 @@
 #include "String.h"
 
 struct Atom;
+struct SourceFile;
 
 #define TOKEN_LIST() \
 X(Token_Unknown, "Unknown") \
@@ -144,9 +145,10 @@ struct SourcePos {
 
 struct Token {
     TokenKind kind = Token_Unknown;
-    String string = {};
     SourcePos start;
     SourcePos end;
+    SourceFile *file;
+
     union {
         u64 integer_value;
         f64 float_value;

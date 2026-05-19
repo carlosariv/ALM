@@ -1,7 +1,5 @@
 #pragma once
 
-#include <vector>
-
 #include "BaseTypes.h"
 #include "Array.h"
 #include "Token.h"
@@ -9,12 +7,6 @@
 struct Ast;
 struct Type;
 struct Symbol;
-
-enum LiteralKind {
-    Literal_Integer,
-    Literal_Floating,
-    Literal_String
-};
 
 enum AstKind {
     Ast_Unknown,
@@ -35,7 +27,7 @@ enum AstKind {
     Ast_While,
     Ast_For,
 
-    Ast_Name,
+    Ast_Ident,
     Ast_LiteralExpr,
     Ast_UnaryExpr,
     Ast_BinaryExpr,
@@ -79,45 +71,51 @@ struct AstFile : Ast {
     }
 };
 
-struct AstName : Ast {
+struct Ident : Ast {
     Atom *name;
     Token token;
     Symbol *symbol = nullptr;
 
-    AstName() {
-        kind = Ast_Name;
+    Ident() {
+        kind = Ast_Ident;
     }
 };
 
-struct AstValueDecl : Ast {
+struct ValueDecl : Ast {
     Array<Ast*> lhs;
     Array<Ast*> rhs;
     Ast *type_defn;
     bool is_constant;
 
-    AstValueDecl() {
+    ValueDecl() {
         kind = Ast_ValueDecl;
     }
 };
 
-struct AstAssign : Ast {
+struct AssignStmt : Ast {
     Array<Ast*> lhs;
     Array<Ast*> rhs;
     Token token;
     Operator op;
 
-    AstAssign() {
+    AssignStmt() {
         kind = Ast_Assign;
     }
 };
 
-struct AstParam : Ast {
+struct Param : Ast {
     Array<Ast*> lhs;
     Array<Ast*> rhs;
     Ast *type_defn;
-    AstParam() {
+    Param() {
         kind = Ast_Param;
     }
+};
+
+enum LiteralKind {
+    Literal_Integer,
+    Literal_Floating,
+    Literal_String
 };
 
 struct LiteralExpr : Ast {
@@ -134,66 +132,66 @@ struct LiteralExpr : Ast {
     }
 };
 
-struct AstUnaryExpr : Ast {
+struct UnaryExpr : Ast {
     Operator op;
     Ast *operand;
     Token token;
 
-    AstUnaryExpr() {
+    UnaryExpr() {
         kind = Ast_UnaryExpr;
     }
 };
 
-struct AstBinaryExpr : Ast {
+struct BinaryExpr : Ast {
     Operator op;
     Ast *lhs;
     Ast *rhs;
     Token token;
 
-    AstBinaryExpr() {
+    BinaryExpr() {
         kind = Ast_BinaryExpr;
     }
 };
 
-struct AstCompoundLiteral : Ast {
+struct CompoundLiteralExpr : Ast {
     Ast *operand;
     Array<Ast*> initializer_list;
     Token open;
     Token close;
 
-    AstCompoundLiteral() {
+    CompoundLiteralExpr() {
         kind = Ast_CompoundLiteral;
     }
 };
 
-struct AstSelectorExpr : Ast {
+struct SelectorExpr : Ast {
     Ast *operand;
-    AstName *name;
+    Ident *name;
     Token token;
 
-    AstSelectorExpr() {
+    SelectorExpr() {
         kind = Ast_SelectorExpr;
     }
 };
 
-struct AstSubscriptExpr : Ast {
+struct SubscriptExpr : Ast {
     Ast *operand;
     Ast *value;
     Token open;
     Token close;
 
-    AstSubscriptExpr() {
+    SubscriptExpr() {
         kind = Ast_SubscriptExpr;
     }
 };
 
-struct AstCallExpr : Ast {
+struct CallExpr : Ast {
     Ast *operand;
     Array<Ast*> arguments;
     Token open;
     Token close;
 
-    AstCallExpr() {
+    CallExpr() {
         kind = Ast_CallExpr;
     }
 };
@@ -334,7 +332,7 @@ struct ReturnStmt : Ast {
 };
 
 struct ProcTypeDefn : Ast {
-    Array<AstParam*> params;
+    Array<Param*> params;
     Ast *return_type;
     Token open;
     Token close;
@@ -358,7 +356,6 @@ struct ArrayTypeDefn : Ast {
 
 struct StructTypeDefn : Ast {
     Array<Ast*> members;
-
     Token token;
     Token open;
     Token close;
@@ -370,6 +367,9 @@ struct StructTypeDefn : Ast {
 
 struct UnionTypeDefn : Ast {
     Array<Ast*> members;
+    Token token;
+    Token open;
+    Token close;
 
     UnionTypeDefn() {
         kind = Ast_UnionType;
@@ -378,7 +378,6 @@ struct UnionTypeDefn : Ast {
 
 struct EnumTypeDefn : Ast {
     Array<Ast*> members;
-
     Token token;
     Token open;
     Token close;
@@ -389,7 +388,7 @@ struct EnumTypeDefn : Ast {
 };
 
 struct Enumerator : Ast {
-    AstName *name;
+    Ident *name;
     Ast *value;
 
     Enumerator() {

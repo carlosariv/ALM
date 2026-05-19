@@ -155,9 +155,9 @@ void init_parser_context(Parser *P, SourceFile *file) {
     next_token(P);
 }
 
-AstName *parse_name(Parser *P) {
+Ident *parse_name(Parser *P) {
     if (is_token(P, Token_Name)) {
-        AstName *name = ast_new<AstName>();
+        Ident *name = ast_new<Ident>();
         name->name = P->current_token.name;
         name->token = P->current_token;
         next_token(P);
@@ -183,7 +183,7 @@ AstFile *parse_file(Parser *P, SourceFile *file) {
 }
 
 Enumerator *parse_enumerator(Parser *P) {
-    AstName *name = parse_name(P);
+    Ident *name = parse_name(P);
 
     if (!name) {
         return nullptr;
@@ -430,7 +430,7 @@ ProcTypeDefn *parse_proc_type(Parser *P) {
             }
         }
 
-        AstParam *param = ast_new<AstParam>();
+        Param *param = ast_new<Param>();
         param->lhs = lhs;
         param->rhs = rhs;
         param->type_defn = type_defn;
@@ -475,7 +475,7 @@ Ast *parse_operand(Parser *P) {
     switch (token.kind) {
         case Token_Name: {
             next_token(P);
-            AstName *name =  ast_new<AstName>();
+            Ident *name =  ast_new<Ident>();
             name->token = token;
             name->name =  token.name;
             return name;
@@ -605,14 +605,14 @@ Array<Ast*> parse_expr_list(Parser *P) {
     return list;
 }
 
-AstSubscriptExpr *parse_subscript_expr(Parser *P, Ast *operand) {
+SubscriptExpr *parse_subscript_expr(Parser *P, Ast *operand) {
     Token open = expect_token(P, Token_OpenBracket);
 
     Ast *value = parse_expr(P);
 
     Token close = expect_token(P, Token_CloseBracket);
 
-    AstSubscriptExpr *sub = ast_new<AstSubscriptExpr>();
+    SubscriptExpr *sub = ast_new<SubscriptExpr>();
     sub->operand = operand;
     sub->value = value;
     sub->open = open;
@@ -620,28 +620,28 @@ AstSubscriptExpr *parse_subscript_expr(Parser *P, Ast *operand) {
     return sub;
 }
 
-AstSelectorExpr *parse_selector_expr(Parser *P, Ast *operand) {
+SelectorExpr *parse_selector_expr(Parser *P, Ast *operand) {
     Token token = expect_token(P, Token_Dot);
-    AstName *name = parse_name(P);
+    Ident *name = parse_name(P);
     if (!name) {
         report_parser_error(P, "expected 'name' after '.'");
     }
 
-    AstSelectorExpr *se = ast_new<AstSelectorExpr>();
+    SelectorExpr *se = ast_new<SelectorExpr>();
     se->operand = operand;
     se->name = name;
     se->token = token;
     return se;
 }
 
-AstCompoundLiteral *parse_compound_literal(Parser *P, Ast *operand) {
+CompoundLiteralExpr *parse_compound_literal(Parser *P, Ast *operand) {
     Token open = expect_token(P, Token_OpenBrace);
 
     Array<Ast*> expr_list = parse_expr_list(P);
 
     Token close = expect_token(P, Token_CloseBrace);
 
-    AstCompoundLiteral *compound = ast_new<AstCompoundLiteral>();
+    CompoundLiteralExpr *compound = ast_new<CompoundLiteralExpr>();
     compound->operand = operand;
     compound->open = open;
     compound->close = close;
@@ -671,7 +671,7 @@ Ast *parse_primary_expr(Parser *P, Ast *operand) {
 
                 Token close = expect_token(P, Token_CloseParen);
 
-                AstCallExpr *call = ast_new<AstCallExpr>();
+                CallExpr *call = ast_new<CallExpr>();
                 call->arguments = arguments;
                 call->operand = operand;
                 operand = call;
@@ -707,7 +707,7 @@ Ast *parse_unary_expr(Parser *P) {
         case Token_Plus: {
             Token token = P->current_token;
             Ast *operand = parse_unary_expr(P);
-            AstUnaryExpr *unary = ast_new<AstUnaryExpr>();
+            UnaryExpr *unary = ast_new<UnaryExpr>();
             unary->op = unary_operator_from_token(token.kind);
             unary->operand = operand;
             unary->token = token;
@@ -716,8 +716,8 @@ Ast *parse_unary_expr(Parser *P) {
     }
 }
 
-AstBinaryExpr *ast_binary_expr(Token token, Operator op, Ast *lhs, Ast *rhs) {
-    AstBinaryExpr *expr = ast_new<AstBinaryExpr>();
+BinaryExpr *ast_binary_expr(Token token, Operator op, Ast *lhs, Ast *rhs) {
+    BinaryExpr *expr = ast_new<BinaryExpr>();
     expr->token = token;
     expr->op = op;
     expr->lhs = lhs;
@@ -783,7 +783,7 @@ Ast *parse_simple_stmt(Parser *P) {
         bool is_constant = false;
 
         for (Ast *name : lhs) {
-            if (name->kind != Ast_Name) {
+            if (name->kind != Ast_Ident) {
                 report_parser_error(P, "left hand side of value declaration must be identifiers");
             }
         }
@@ -801,7 +801,7 @@ Ast *parse_simple_stmt(Parser *P) {
             }
         }
 
-        AstValueDecl *vd = ast_new<AstValueDecl>();
+        ValueDecl *vd = ast_new<ValueDecl>();
         vd->lhs = lhs;
         vd->rhs = rhs;
         vd->type_defn = type_defn;
@@ -814,7 +814,7 @@ Ast *parse_simple_stmt(Parser *P) {
     } else if (is_assign_token(peek_token(P))) {
         Token token = next_token(P);
         rhs = parse_expr_list(P);
-        AstAssign *assign = ast_new<AstAssign>();
+        AssignStmt *assign = ast_new<AssignStmt>();
         assign->lhs = lhs;
         assign->rhs = rhs;
         assign->token = token;
@@ -1043,6 +1043,7 @@ scan_begin:
     tok.start.line  = P->current_line;
     tok.start.col   = P->current_col;
     tok.start.index = P->stream_index;
+    tok.file = P->current_file;
 
     #define TOKCASE(C,T) case C: advance_char(P); tok.kind = T; break
 

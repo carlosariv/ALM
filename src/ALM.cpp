@@ -51,11 +51,15 @@ int main(int argc, char **argv) {
         if (file) {
             SourceFile *source = new SourceFile();
             fs::path path(filename);
+            fs::path absolute_path = fs::absolute(path);
+
             std::string f = path.filename().string();
             std::string pp = path.filename().string();
+            std::string ap = absolute_path.string();
 
             source->filename = make_string((u8 *)f.c_str(), f.length() + 1);
             source->path = make_string((u8 *)pp.c_str(), pp.length() + 1);
+            source->absolute_path = make_string((u8 *)ap.c_str(), ap.length() + 1);
             std::string text = std::string(std::istreambuf_iterator<char>(file), {});
             String content = make_string(text.c_str(), text.length() + 1);
             source->content = content;
@@ -66,7 +70,6 @@ int main(int argc, char **argv) {
     }
 
     Array<AstFile*> ast_files;
-
     for (SourceFile *file : parser.files) {
         AstFile *ast_file = parse_file(&parser, file);
         ast_files.add(ast_file);

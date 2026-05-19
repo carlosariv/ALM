@@ -16,7 +16,7 @@
 //     return x;
 // }
 
-void resolve_name(Resolver *R, AstName *name) {
+void resolve_name(Resolver *R, Ident *name) {
 }
 
 void resolve_expr(Resolver *R, Ast *expr) {
@@ -24,8 +24,8 @@ void resolve_expr(Resolver *R, Ast *expr) {
         default:
             break;
 
-        case Ast_Name: {
-            AstName *name = static_cast<AstName*>(expr);
+        case Ast_Ident: {
+            Ident *name = static_cast<Ident*>(expr);
             resolve_name(R, name);
             break;
         }
@@ -54,15 +54,15 @@ Symbol *symbol_create(Resolver *R) {
     return s;
 }
 
-void resolve_value_decl(Resolver *R, AstValueDecl *vd) {
+void resolve_value_decl(Resolver *R, ValueDecl *vd) {
     for (Ast *expr : vd->lhs) {
-        assert(expr->kind == Ast_Name);
+        assert(expr->kind == Ast_Ident);
 
-        AstName *name = static_cast<AstName*>(expr);
+        Ident *name = static_cast<Ident*>(expr);
 
         Symbol *lookup = symbol_find(R, name->name);
         if (lookup) {
-            report_error(name, "found duplicate of '{}'", get_string(name->name));
+            report_error(name, "redefinition of '{}'", get_string(name->name));
         } else {
             Symbol *symbol = symbol_create(R);
             symbol->name = name->name;
@@ -92,7 +92,7 @@ void resolve_top_level_stmt(Resolver *R, Ast *stmt) {
         default:
             break;
         case Ast_ValueDecl:
-            resolve_value_decl(R, static_cast<AstValueDecl*>(stmt));
+            resolve_value_decl(R, static_cast<ValueDecl*>(stmt));
             break;
     }
 }

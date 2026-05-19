@@ -17,6 +17,8 @@ struct Array {
     Array() {
     }
 
+    bool is_empty() { return count == 0; }
+
     const T& operator[](isize i) const {
         return data[i];
     }
