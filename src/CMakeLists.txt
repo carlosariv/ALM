@@ -6,6 +6,7 @@ add_executable(ALM
     String.cpp
     Atom.cpp
     Resolve.cpp
+    Report.cpp
 
     BaseTypes.h
     Array.h
@@ -15,6 +16,7 @@ add_executable(ALM
     Atom.h
     Parser.h
     Resolve.h
+    Report.h
 )
 
 

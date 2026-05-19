@@ -1,21 +1,21 @@
 #include "Report.h"
 
-Token ast_start_token(Ast *node) {
 #define AST_X(Name,Type) Type *Name = static_cast<Type*>(node);
 
+Token ast_start_token(Ast *node) {
     switch (node->kind) {
-        default: 
+        default:
         case Ast_File:
             break;
 
         case Ast_ValueDecl: {
-            AST_X(vd, AstValueDecl);
+            AST_X(vd, ValueDecl);
             return ast_start_token(vd->lhs[0]);
         }
 
         case Ast_Assign: {
-            AST_X(as, AstAssign);
-            return as->lhs[0];
+            AST_X(as, AssignStmt);
+            return ast_start_token(as->lhs[0]);
         }
 
         case Ast_ExprStmt: {
@@ -44,7 +44,7 @@ Token ast_start_token(Ast *node) {
         }
         case Ast_Case: {
             AST_X(cs, CaseExpr);
-            return ast_start_token(cs->token);
+            return cs->token;
         }
         case Ast_Do: {
             AST_X(ds, DoStmt);
@@ -59,8 +59,8 @@ Token ast_start_token(Ast *node) {
             return fs->token;
         }
 
-        case Ast_Name: {
-            AST_X(name, AstName);
+        case Ast_Ident: {
+            AST_X(name, Ident);
             return name->token;
         }
         case Ast_LiteralExpr: {
@@ -68,23 +68,23 @@ Token ast_start_token(Ast *node) {
             return le->token;
         }
         case Ast_UnaryExpr: {
-            AST_X(ue, AstUnaryExpr);
+            AST_X(ue, UnaryExpr);
             return ue->token;
         }
         case Ast_BinaryExpr: {
-            AST_X(be, AstBinaryExpr);
+            AST_X(be, BinaryExpr);
             return ast_start_token(be->lhs);
         }
         case Ast_SelectorExpr: {
-            AST_X(se, AstSelectorExpr);
+            AST_X(se, SelectorExpr);
             return se->token;
         }
         case Ast_SubscriptExpr: {
-            AST_X(se, AstSubscriptExpr);
+            AST_X(se, SubscriptExpr);
             return se->open;
         }
         case Ast_CallExpr: {
-            AST_X(ce, AstCallExpr);
+            AST_X(ce, CallExpr);
             return ce->open;
         }
         case Ast_ParenExpr: {
@@ -96,7 +96,7 @@ Token ast_start_token(Ast *node) {
             return be->open;
         }
         case Ast_CompoundLiteral: {
-            AST_X(cl, CompoundLiteral);
+            AST_X(cl, CompoundLiteralExpr);
             return cl->open;
         }
         case Ast_IfExpr: {
@@ -117,8 +117,8 @@ Token ast_start_token(Ast *node) {
             return ast_start_token(pl->proc_type);
         }
         case Ast_Param: {
-            AST_X(param, AstParam);
-            return ast_start_token(param->lhs);
+            AST_X(param, Param);
+            return ast_start_token(param->lhs[0]);
         }
         case Ast_ArrayType: {
             AST_X(at, ArrayTypeDefn);
@@ -144,7 +144,170 @@ Token ast_start_token(Ast *node) {
     return {};
 }
 
-
 Token ast_end_token(Ast *node) {
+    switch (node->kind) {
+        default:
+        case Ast_File:
+            break;
+
+        case Ast_ValueDecl: {
+            AST_X(vd, ValueDecl);
+            if (!vd->rhs.is_empty()) {
+                return ast_end_token(vd->rhs[vd->rhs.count-1]);
+            } else {
+                return ast_end_token(vd->type_defn);
+            }
+        }
+
+        case Ast_Assign: {
+            AST_X(as, AssignStmt);
+            return ast_end_token(as->rhs[as->rhs.count-1]);
+        }
+
+        case Ast_ExprStmt: {
+            AST_X(es, ExprStmt);
+            return ast_end_token(es->expr);
+        }
+        case Ast_EmptyStmt: {
+            AST_X(es, EmptyStmt);
+            return es->token;
+        }
+        case Ast_Break: {
+            AST_X(br, BreakStmt);
+            return br->token;
+        }
+        case Ast_Continue: {
+            AST_X(c, ContinueStmt);
+            return c->token;
+        }
+        case Ast_Fallthrough: {
+            AST_X(ft, FallthroughStmt);
+            return ft->token;
+        }
+        case Ast_Return: {
+            AST_X(ret, ReturnStmt);
+            if (ret->expr) {
+                return ast_end_token(ret->expr);
+            }
+            return ret->token;
+        }
+        case Ast_Case: {
+            AST_X(cs, CaseExpr);
+            if (!cs->statements.is_empty()) {
+                return ast_end_token(cs->statements[cs->statements.count-1]);
+            }
+            if (cs->expr) {
+                return ast_end_token(cs->expr);
+            }
+            return cs->token;
+        }
+        case Ast_Do: {
+            AST_X(ds, DoStmt);
+            return ast_end_token(ds->block);
+        }
+        case Ast_While: {
+            AST_X(ws, WhileStmt);
+            return ast_end_token(ws->block);
+        }
+        case Ast_For: {
+            AST_X(fs, ForStmt);
+            return ast_end_token(fs->block);
+        }
+
+        case Ast_Ident: {
+            AST_X(name, Ident);
+            return name->token;
+        }
+        case Ast_LiteralExpr: {
+            AST_X(le, LiteralExpr);
+            return le->token;
+        }
+        case Ast_UnaryExpr: {
+            AST_X(ue, UnaryExpr);
+            return ast_end_token(ue->operand);
+        }
+        case Ast_BinaryExpr: {
+            AST_X(be, BinaryExpr);
+            return ast_end_token(be->rhs);
+        }
+        case Ast_SelectorExpr: {
+            AST_X(se, SelectorExpr);
+            return ast_end_token(se->name);
+        }
+        case Ast_SubscriptExpr: {
+            AST_X(se, SubscriptExpr);
+            return se->close;
+        }
+        case Ast_CallExpr: {
+            AST_X(ce, CallExpr);
+            return ce->close;
+        }
+        case Ast_ParenExpr: {
+            AST_X(pe, ParenExpr);
+            return pe->close;
+        }
+        case Ast_BlockExpr: {
+            AST_X(be, BlockExpr);
+            return be->close;
+        }
+        case Ast_CompoundLiteral: {
+            AST_X(cl, CompoundLiteralExpr);
+            return cl->close;
+        }
+        case Ast_IfExpr: {
+            AST_X(ie, IfExpr);
+            return ast_end_token(ie->then_expr);
+        }
+        case Ast_StarExpr: {
+            AST_X(se, StarExpr);
+            return ast_end_token(se->elem);
+        }
+
+        case Ast_ProcType: {
+            AST_X(pt, ProcTypeDefn);
+            if (pt->return_type) {
+                return ast_end_token(pt->return_type);
+            }
+            return pt->close;
+        }
+        case Ast_ProcLit: {
+            AST_X(pl, ProcLit);
+            if (pl->body) {
+                return ast_end_token(pl->body);
+            }
+            return ast_end_token(pl->proc_type);
+        }
+        case Ast_Param: {
+            AST_X(param, Param);
+            if (!param->rhs.is_empty()) {
+                return ast_end_token(param->rhs[param->rhs.count-1]);
+            } else {
+                return ast_end_token(param->type_defn);
+            }
+        }
+        case Ast_ArrayType: {
+            AST_X(at, ArrayTypeDefn);
+            return at->close;
+        }
+        case Ast_StructType: {
+            AST_X(st, StructTypeDefn);
+            return st->close;
+        }
+        case Ast_UnionType: {
+            AST_X(ut, UnionTypeDefn);
+            return ut->close;
+        }
+        case Ast_EnumType: {
+            AST_X(et, EnumTypeDefn);
+            return et->close;
+        }
+        case Ast_Enumerator: {
+            AST_X(enu, Enumerator);
+            if (enu->value) {
+                return ast_end_token(enu->value);
+            }
+            return ast_end_token(enu->name);
+        }
+    }
     return {};
 }
