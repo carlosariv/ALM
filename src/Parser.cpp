@@ -270,57 +270,70 @@ CaseExpr *parse_case_clause(Parser *P) {
     return c;
 }
 
-IfExpr *parse_if_expr(Parser *P) {
-    Token token = expect_token(P, Token_If);
-
-    IfExpr *if_expr = ast_new<IfExpr>();
-
-    Ast *prev_control = P->control_target;
-    P->control_target = if_expr;
-
+Ast *parse_expr_no_block(Parser *P) {
     int prev_expr_level = P->expr_level;
     P->expr_level = -1;
-    Ast *condition = parse_expr(P);
 
-    if (match_token(P, Token_Then)) {
-    } else if (match_token(P, Token_Of)) {
-        if_expr->is_ifcase = true;
-    }
+    Ast *expr = parse_expr(P);
 
     P->expr_level = prev_expr_level;
+    return expr;
+}
 
-    Ast *then_expr = parse_expr(P);
-
-    P->control_target = prev_control;
-
-    if_expr->condition = condition;
-    if_expr->then_expr = then_expr;
-    if_expr->token = token;
-
-    IfExpr *prev_if = if_expr;
-
-    while (is_token(P, Token_Else)) {
-        Token e = expect_token(P, Token_Else);
-
-        condition = nullptr;
-
-        if (is_token(P, Token_If)) {
-            Token i = expect_token(P, Token_If);
-            condition = parse_expr(P);
+Ast *parse_if_or_case_expr(Parser *P) {
+    Token token = {};
+    bool is_final = false;
+    if (is_token(P, Token_If)) {
+        token = next_token(P);
+    } else if (is_token(P, Token_Else)) {
+        token = next_token(P);
+        if (!match_token(P, Token_If)) {
+            is_final = true;
         }
-
-        then_expr = parse_expr(P);
-
-        IfExpr *elif = ast_new<IfExpr>();
-        elif->condition = condition;
-        elif->then_expr = then_expr;
-        elif->else_if = nullptr;
-
-        prev_if->else_if = elif;
-        prev_if = elif;
     }
 
-    return if_expr;
+    Ast *condition = nullptr;
+    if (!is_final) {
+        condition = parse_expr_no_block(P);
+    }
+
+    if (match_token(P, Token_Of)) {
+        //NOTE: Ifcase parsing
+        int prev_allow_case = P->allow_case;
+        P->allow_case = true;
+
+        BlockExpr *block = parse_block_expr(P);
+
+        P->allow_case = prev_allow_case;
+
+        IfCaseExpr *ifcase = ast_new<IfCaseExpr>();
+        ifcase->condition = condition;
+        ifcase->block = block;
+        ifcase->token = token;
+        return ifcase;
+    } else {
+        //NOTE: If parsing
+        match_token(P, Token_Then);
+
+        Ast *then_expr = parse_expr(P);
+
+        IfExpr *if_expr = ast_new<IfExpr>();
+        if_expr->condition = condition;
+        if_expr->then_expr = then_expr;
+        if_expr->prev_if = nullptr;
+        if_expr->else_if = nullptr;
+        if_expr->is_final = is_final;
+
+        if (!is_final && is_token(P, Token_Else)) {
+            Ast *next = parse_if_or_case_expr(P);
+            if (next->kind == Ast_IfExpr) {
+                IfExpr *elif = static_cast<IfExpr*>(next);
+                elif->prev_if = if_expr;
+                if_expr->else_if = elif;
+            }
+        }
+        return if_expr;
+    }
 }
 
 BlockExpr *parse_block_expr(Parser *P) {
@@ -575,7 +588,7 @@ Ast *parse_operand(Parser *P) {
             return parse_block_expr(P);
 
         case Token_If:
-            return parse_if_expr(P);
+            return parse_if_or_case_expr(P);
 
         case Token_Struct:
             return parse_struct_type(P);
@@ -661,6 +674,15 @@ Ast *parse_primary_expr(Parser *P, Ast *operand) {
 
             case Token_Dot: {
                 operand = parse_selector_expr(P, operand);
+                break;
+            }
+
+            case Token_DotStar: {
+                Token token = expect_token(P, Token_DotStar);
+                DerefExpr *de = ast_new<DerefExpr>();
+                de->operand = operand;
+                de->token = token;
+                operand = de;
                 break;
             }
 
@@ -1087,8 +1109,8 @@ scan_begin:
             advance_char(P);
             switch (peek_char(P)) {
                 default: tok.kind = Token_Dot; break;
-                case '.': tok.kind = Token_Ellipsis; break;
-                case '*': tok.kind = Token_DotStar; break;
+                case '.': advance_char(P); tok.kind = Token_Ellipsis; break;
+                case '*': advance_char(P); tok.kind = Token_DotStar; break;
                 case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
                     rewind_to(P, tok.start);
                     f64 f = scan_floating(P);

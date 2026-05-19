@@ -4,10 +4,6 @@
 
 Token ast_start_token(Ast *node) {
     switch (node->kind) {
-        default:
-        case Ast_File:
-            break;
-
         case Ast_ValueDecl: {
             AST_X(vd, ValueDecl);
             return ast_start_token(vd->lhs[0]);
@@ -103,9 +99,18 @@ Token ast_start_token(Ast *node) {
             AST_X(ie, IfExpr);
             return ie->token;
         }
+        case Ast_IfCaseExpr: {
+            AST_X(ice, IfCaseExpr);
+            return ice->token;
+        }
         case Ast_StarExpr: {
             AST_X(se, StarExpr);
             return se->token;
+        }
+
+        case Ast_DerefExpr: {
+            AST_X(de, DerefExpr);
+            return ast_start_token(de->operand);
         }
 
         case Ast_ProcType: {
@@ -140,16 +145,18 @@ Token ast_start_token(Ast *node) {
             AST_X(enu, Enumerator);
             return ast_start_token(enu->name);
         }
+
+        case Ast_Unknown:
+        case Ast_Error:
+        case Ast_File:
+        case Ast_COUNT:
+            break;
     }
     return {};
 }
 
 Token ast_end_token(Ast *node) {
     switch (node->kind) {
-        default:
-        case Ast_File:
-            break;
-
         case Ast_ValueDecl: {
             AST_X(vd, ValueDecl);
             if (!vd->rhs.is_empty()) {
@@ -258,9 +265,17 @@ Token ast_end_token(Ast *node) {
             AST_X(ie, IfExpr);
             return ast_end_token(ie->then_expr);
         }
+        case Ast_IfCaseExpr: {
+            AST_X(ice, IfCaseExpr);
+            return ast_end_token(ice->block);
+        }
         case Ast_StarExpr: {
             AST_X(se, StarExpr);
             return ast_end_token(se->elem);
+        }
+        case Ast_DerefExpr: {
+            AST_X(de, DerefExpr);
+            return de->token;
         }
 
         case Ast_ProcType: {
@@ -308,6 +323,11 @@ Token ast_end_token(Ast *node) {
             }
             return ast_end_token(enu->name);
         }
+        case Ast_Unknown:
+        case Ast_Error:
+        case Ast_File:
+        case Ast_COUNT:
+            break;
     }
     return {};
 }

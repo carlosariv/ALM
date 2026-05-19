@@ -7,6 +7,7 @@
 struct Ast;
 struct Type;
 struct Symbol;
+struct BlockExpr;
 
 enum AstKind {
     Ast_Unknown,
@@ -38,7 +39,9 @@ enum AstKind {
     Ast_BlockExpr,
     Ast_CompoundLiteral,
     Ast_IfExpr,
+    Ast_IfCaseExpr,
     Ast_StarExpr,
+    Ast_DerefExpr,
 
     Ast_ProcType,
     Ast_ProcLit,
@@ -199,12 +202,22 @@ struct CallExpr : Ast {
 struct IfExpr : Ast {
     Ast *condition;
     Ast *then_expr = nullptr;
+    IfExpr *prev_if = nullptr;
     IfExpr *else_if = nullptr;
+    bool is_final = false;
     Token token;
-    bool is_ifcase = false;
 
     IfExpr() {
         kind = Ast_IfExpr;
+    }
+};
+
+struct IfCaseExpr : Ast {
+    Ast *condition;
+    BlockExpr *block;
+    Token token;
+    IfCaseExpr() {
+        kind = Ast_IfCaseExpr;
     }
 };
 
@@ -239,6 +252,15 @@ struct StarExpr : Ast {
         kind = Ast_StarExpr;
     }
 };
+
+struct DerefExpr : Ast {
+    Ast *operand;
+    Token token;
+
+    DerefExpr() {
+        kind = Ast_DerefExpr;
+    }
+ };
 
 struct EmptyStmt : Ast {
     Token token;

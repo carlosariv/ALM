@@ -256,6 +256,16 @@ void ast_print(Ast *node) {
             break;
         }
 
+        case Ast_IfCaseExpr: {
+            IfCaseExpr *ice = static_cast<IfCaseExpr*>(node);
+            ast_out("(ifcase ");
+            ast_print(ice->condition);
+            ast_out("\n");
+            ast_print(ice->block);
+            ast_out(")\n");
+            break;
+        }
+
         case Ast_BlockExpr: {
             BlockExpr *block = static_cast<BlockExpr*>(node);
             ast_out("(block \n");
@@ -310,6 +320,14 @@ void ast_print(Ast *node) {
             StarExpr *star = static_cast<StarExpr*>(node);
             ast_out("(* ");
             ast_print(star->elem);
+            ast_out(")");
+            break;
+        }
+
+        case Ast_DerefExpr: {
+            DerefExpr *de = static_cast<DerefExpr*>(node);
+            ast_out("(deref ");
+            ast_print(de->operand);
             ast_out(")");
             break;
         }

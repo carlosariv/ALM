@@ -31,6 +31,7 @@ struct Parser {
 
     int expr_level = 0;
     bool allow_type = false;
+    bool allow_case = false;
 
     Ast *control_target = nullptr;
     BlockExpr *block = nullptr;
