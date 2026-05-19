@@ -1,9 +1,11 @@
 #pragma once
 
 #include "Array.h"
+#include "String.h"
 
 enum TypeKind {
     Type_Unknown,
+    Type_BuiltinBegin,
     Type_Void,
     Type_Bool,
     Type_U8,
@@ -16,6 +18,7 @@ enum TypeKind {
     Type_I64,
     Type_F32,
     Type_F64,
+    Type_BuiltinEnd,
 
     Type_Pointer,
     Type_Array,
@@ -46,7 +49,7 @@ struct PointerType : Type {
 
 struct ArrayType : Type {
     Type *base;
-    CompileTimeValue fixed_size;
+    // CompileTimeValue fixed_size;
 
     ArrayType() {
         kind = Type_Array;
@@ -69,7 +72,7 @@ struct TupleType : Type {
     }
 };
 
-
+extern Type g_builtin_types[];
 extern Type *t_void;
 extern Type *t_bool;
 extern Type *t_u8;

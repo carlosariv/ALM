@@ -1,5 +1,6 @@
+#include "Types.h"
 
-Type builtin_types[] = {
+Type g_builtin_types[] = {
     {Type_Unknown, STRZ("<unknown>"), 0},
     {Type_Void,    STRZ("void"),      0},
     {Type_Bool,    STRZ("bool"),      1},
@@ -15,15 +16,15 @@ Type builtin_types[] = {
     {Type_F64,     STRZ("f64"),       8},
 };
 
-Type *t_void = &builtin_types[Type_Void];
-Type *t_bool = &builtin_types[Type_Bool];
-Type *t_u8 = &builtin_types[Type_U8];
-Type *t_u16 &builtin_types[Type_U16];
-Type *t_u32 = &builtin_types[Type_U32];
-Type *t_u64 = &builtin_types[Type_U64];
-Type *t_i8 = &builtin_types[Type_I8];
-Type *t_i16 &builtin_types[Type_I16];
-Type *t_i32 = &builtin_types[Type_I32];
-Type *t_i64 = &builtin_types[Type_I64];
-Type *t_f32 = &builtin_types[Type_F32];
-Type *t_f64 = &builtin_types[Type_F64];
+Type *t_void = &g_builtin_types[Type_Void];
+Type *t_bool = &g_builtin_types[Type_Bool];
+Type *t_u8 = &g_builtin_types[Type_U8];
+Type *t_u16 = &g_builtin_types[Type_U16];
+Type *t_u32 = &g_builtin_types[Type_U32];
+Type *t_u64 = &g_builtin_types[Type_U64];
+Type *t_i8 = &g_builtin_types[Type_I8];
+Type *t_i16 = &g_builtin_types[Type_I16];
+Type *t_i32 = &g_builtin_types[Type_I32];
+Type *t_i64 = &g_builtin_types[Type_I64];
+Type *t_f32 = &g_builtin_types[Type_F32];
+Type *t_f64 = &g_builtin_types[Type_F64];

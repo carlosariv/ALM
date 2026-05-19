@@ -58,6 +58,7 @@ enum AstKind {
 struct Ast {
     AstKind kind = Ast_Error;
     Type *type = nullptr;
+    ComptimeValue value;
 };
 
 struct AstError : Ast {
