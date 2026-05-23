@@ -14,9 +14,6 @@ struct Array {
     using iterator = T*;
     using const_iterator = const T*;
 
-    Array() {
-    }
-
     bool is_empty() { return count == 0; }
 
     const T& operator[](isize i) const {
@@ -55,9 +52,14 @@ struct Array {
         __Grow(initial_size);
     }
 
+    void append(T elem) {
+        __Grow(1);
+        data[count] = elem;
+        count += 1;
+    }
+
     void add(T elem) {
         __Grow(1);
-
         data[count] = elem;
         count += 1;
     }
@@ -85,5 +87,15 @@ struct Array {
         allocator.deallocate(data);
         data = nullptr;
         capacity = 0;
+    }
+
+    Array() { }
+
+    Array(std::initializer_list<T> list) {
+        __Grow(list.size());
+        for (T elem : list) {
+            data[count] = elem;
+            count += 1;
+        }
     }
 };
