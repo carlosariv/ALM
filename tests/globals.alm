@@ -1,0 +1,40 @@
+
+get2 :: () -> int, int{
+    return 0, 1;
+}
+
+foo, Foo ::
+    10.0,
+    struct {
+        //..
+    }
+
+Buzz, buzz, make_buzz ::
+    struct {
+        i: int;
+        b: bool;
+    },
+
+    Buzz{0, 1},
+
+    (i: int, b: bool) -> Buzz {
+        ret: Buzz;
+        ret.i, ret.b = i, b;
+        //return ret;
+        return Buzz{i, b};
+    }
+
+mo :: () -> int {
+    return 0;
+}
+
+mo :: (f: int) -> int {
+    return f;
+}
+
+main :: () {
+    i, j, k := 10, get2();
+
+    a := mo(0.0);
+    b := mo();
+}
