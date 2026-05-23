@@ -73,14 +73,17 @@ void ast_print(Ast *node) {
         case Ast_ProcType: {
             ProcTypeDefn *proc_type = static_cast<ProcTypeDefn*>(node);
             ast_out("(");
-            for (Param *param : proc_type->params) {
+            for (ValueDecl *param : proc_type->params) {
                 ast_print(param);
             }
             ast_out(")");
 
-            if (proc_type->return_type) {
+            if (proc_type->results.count) {
                 ast_out("-> (");
-                ast_print(proc_type->return_type);
+                for (Ast *ret : proc_type->results) {
+                    ast_print(ret);
+                    ast_out(" ");
+                }
                 ast_out(")");
             }
 
@@ -129,31 +132,6 @@ void ast_print(Ast *node) {
             for (Ast *init :  cl->initializer_list) {
                 ast_print(init);
             }
-            ast_out(")");
-            break;
-        }
-
-        case Ast_Param: {
-            Param *param = static_cast<Param*>(node);
-            ast_out("(");
-            for (Ast *name : param->lhs) {
-                ast_print(name);
-                ast_out(",");
-            }
-
-            if (param->type_defn) {
-                ast_out(":");
-                ast_print(param->type_defn);
-            }
-
-            if (param->rhs.count > 0) {
-                ast_out("= (");
-                for (Ast *e : param->rhs) {
-                    ast_print(e);
-                }
-                ast_out(")");
-            }
-
             ast_out(")");
             break;
         }
@@ -308,9 +286,9 @@ void ast_print(Ast *node) {
         case Ast_Return: {
             ReturnStmt *ret = static_cast<ReturnStmt*>(node);
             ast_out("(return");
-            if (ret->expr) {
+            for (Ast *res : ret->results) {
                 ast_out(" ");
-                ast_print(ret->expr);
+                ast_print(res);
             }
             ast_out(")");
             break;
@@ -364,7 +342,7 @@ void ast_print(Ast *node) {
                 ast_print(type->size);
             }
             ast_out("]");
-            ast_print(type->elem);
+            ast_print(type->operand);
             break;
         }
 

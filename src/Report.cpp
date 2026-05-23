@@ -121,10 +121,6 @@ Token ast_start_token(Ast *node) {
             AST_X(pl, ProcLit);
             return ast_start_token(pl->proc_type);
         }
-        case Ast_Param: {
-            AST_X(param, Param);
-            return ast_start_token(param->lhs[0]);
-        }
         case Ast_ArrayType: {
             AST_X(at, ArrayTypeDefn);
             return at->open;
@@ -193,8 +189,8 @@ Token ast_end_token(Ast *node) {
         }
         case Ast_Return: {
             AST_X(ret, ReturnStmt);
-            if (ret->expr) {
-                return ast_end_token(ret->expr);
+            if (ret->results.count > 0) {
+                return ast_end_token(ret->results[ret->results.count - 1]);
             }
             return ret->token;
         }
@@ -280,8 +276,8 @@ Token ast_end_token(Ast *node) {
 
         case Ast_ProcType: {
             AST_X(pt, ProcTypeDefn);
-            if (pt->return_type) {
-                return ast_end_token(pt->return_type);
+            if (pt->results.count > 0) {
+                return ast_end_token(pt->results[pt->results.count-1]);
             }
             return pt->close;
         }
@@ -291,14 +287,6 @@ Token ast_end_token(Ast *node) {
                 return ast_end_token(pl->body);
             }
             return ast_end_token(pl->proc_type);
-        }
-        case Ast_Param: {
-            AST_X(param, Param);
-            if (!param->rhs.is_empty()) {
-                return ast_end_token(param->rhs[param->rhs.count-1]);
-            } else {
-                return ast_end_token(param->type_defn);
-            }
         }
         case Ast_ArrayType: {
             AST_X(at, ArrayTypeDefn);

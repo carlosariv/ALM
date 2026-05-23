@@ -6,8 +6,13 @@
 
 struct Ast;
 struct Type;
-struct Symbol;
+struct Decl;
 struct BlockExpr;
+
+enum AstFlags {
+    AstFlag_Nil = 0,
+    AstFlag_Loop = (1<<0),
+};
 
 enum AstKind {
     Ast_Unknown,
@@ -45,7 +50,6 @@ enum AstKind {
 
     Ast_ProcType,
     Ast_ProcLit,
-    Ast_Param,
     Ast_ArrayType,
     Ast_StructType,
     Ast_UnionType,
@@ -55,10 +59,29 @@ enum AstKind {
     Ast_COUNT
 };
 
+enum ComptimeValueKind {
+    ComptimeValue_Nil,
+    ComptimeValue_Integer,
+    ComptimeValue_Float,
+    ComptimeValue_String,
+    ComptimeValue_Type,
+};
+
+struct ComptimeValue {
+    ComptimeValueKind kind = ComptimeValue_Nil;
+    union {
+        i64 integer_value = 0;
+        f64 float_value;
+        String string_value;
+        Type *type;
+    };
+};
+
 struct Ast {
     AstKind kind = Ast_Error;
     Type *type = nullptr;
-    ComptimeValue value;
+    ComptimeValue ct_value;
+    bool is_comptime = false;
 };
 
 struct AstError : Ast {
@@ -78,7 +101,7 @@ struct AstFile : Ast {
 struct Ident : Ast {
     Atom *name;
     Token token;
-    Symbol *symbol = nullptr;
+    Decl *ref = nullptr;
 
     Ident() {
         kind = Ast_Ident;
@@ -89,7 +112,7 @@ struct ValueDecl : Ast {
     Array<Ast*> lhs;
     Array<Ast*> rhs;
     Ast *type_defn;
-    bool is_constant;
+    bool is_mutable;
 
     ValueDecl() {
         kind = Ast_ValueDecl;
@@ -104,15 +127,6 @@ struct AssignStmt : Ast {
 
     AssignStmt() {
         kind = Ast_Assign;
-    }
-};
-
-struct Param : Ast {
-    Array<Ast*> lhs;
-    Array<Ast*> rhs;
-    Ast *type_defn;
-    Param() {
-        kind = Ast_Param;
     }
 };
 
@@ -329,6 +343,7 @@ struct ContinueStmt : Ast {
 };
 
 struct BreakStmt : Ast {
+    Ast *expr;
     Token token;
 
     BreakStmt() {
@@ -344,9 +359,8 @@ struct FallthroughStmt : Ast {
     }
 };
 
-
 struct ReturnStmt : Ast {
-    Ast *expr;
+    Array<Ast*> results;
     Token token;
 
     ReturnStmt() {
@@ -355,8 +369,8 @@ struct ReturnStmt : Ast {
 };
 
 struct ProcTypeDefn : Ast {
-    Array<Param*> params;
-    Ast *return_type;
+    Array<ValueDecl*> params;
+    Array<Ast*> results;
     Token open;
     Token close;
 
@@ -366,7 +380,7 @@ struct ProcTypeDefn : Ast {
 };
 
 struct ArrayTypeDefn : Ast {
-    Ast *elem;
+    Ast *operand;
     Ast *size;
     bool dynamic;
     Token open;
@@ -378,7 +392,7 @@ struct ArrayTypeDefn : Ast {
 };
 
 struct StructTypeDefn : Ast {
-    Array<Ast*> members;
+    Array<ValueDecl*> members;
     Token token;
     Token open;
     Token close;
@@ -389,24 +403,13 @@ struct StructTypeDefn : Ast {
 };
 
 struct UnionTypeDefn : Ast {
-    Array<Ast*> members;
+    Array<ValueDecl*> members;
     Token token;
     Token open;
     Token close;
 
     UnionTypeDefn() {
         kind = Ast_UnionType;
-    }
-};
-
-struct EnumTypeDefn : Ast {
-    Array<Ast*> members;
-    Token token;
-    Token open;
-    Token close;
-
-    EnumTypeDefn() {
-        kind = Ast_EnumType;
     }
 };
 
@@ -419,9 +422,21 @@ struct Enumerator : Ast {
     }
 };
 
+struct EnumTypeDefn : Ast {
+    Array<Ast*> members;
+    Array<Enumerator*> enumerators;
+    Token token;
+    Token open;
+    Token close;
+
+    EnumTypeDefn() {
+        kind = Ast_EnumType;
+    }
+};
+
 struct ProcLit : Ast {
     ProcTypeDefn *proc_type;
-    Ast *body;
+    BlockExpr *body;
 
     ProcLit() {
         kind = Ast_ProcLit;

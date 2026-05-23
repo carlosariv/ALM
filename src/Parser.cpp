@@ -238,10 +238,12 @@ StructTypeDefn *parse_struct_type(Parser *P) {
     StructTypeDefn *struct_type = ast_new<StructTypeDefn>();
 
     while (!is_token(P, Token_CloseBrace)) {
-        Ast *stmt = parse_stmt(P);
+        Ast *stmt = parse_simple_stmt(P);
         if (!stmt) break;
 
-        struct_type->members.add(stmt);
+        if (stmt->kind == Ast_ValueDecl) {
+            struct_type->members.append((ValueDecl *)stmt);
+        }
     }
 
     Token close = expect_token(P, Token_CloseBrace);
@@ -268,6 +270,21 @@ CaseExpr *parse_case_clause(Parser *P) {
     c->is_default = expr == nullptr;
     c->token = token;
     return c;
+}
+
+Array<Ast*> parse_type_list(Parser *P) {
+    Array<Ast*> types;
+    for (;;) {
+        Ast *type = parse_type(P);
+        if (!type) {
+            break;
+        }
+        types.append(type);
+        if (!match_token(P, Token_Comma)) {
+            break;
+        }
+    }
+    return types;
 }
 
 Ast *parse_expr_no_block(Parser *P) {
@@ -302,11 +319,12 @@ Ast *parse_if_or_case_expr(Parser *P) {
         int prev_allow_case = P->allow_case;
         P->allow_case = true;
 
+        IfCaseExpr *ifcase = ast_new<IfCaseExpr>();
+
         BlockExpr *block = parse_block_expr(P);
 
         P->allow_case = prev_allow_case;
 
-        IfCaseExpr *ifcase = ast_new<IfCaseExpr>();
         ifcase->condition = condition;
         ifcase->block = block;
         ifcase->token = token;
@@ -350,10 +368,6 @@ BlockExpr *parse_block_expr(Parser *P) {
 
     if (is_token(P, Token_Case)) {
         block->is_ifcase = true;
-        if (P->control_target == nullptr || P->control_target->kind != Ast_IfExpr) {
-            report_parser_error(P, "case expression in a non-if block");
-        }
-
         CaseExpr *clause_tail = nullptr;
 
         while (!is_token(P, Token_CloseBrace)) {
@@ -422,6 +436,10 @@ ProcTypeDefn *parse_proc_type(Parser *P) {
 
     while (!is_token(P, Token_CloseParen)) {
         Array<Ast*> lhs = parse_expr_list(P);
+        if (lhs.count == 0) {
+            break;
+        }
+
         Ast *type_defn = nullptr;
         Array<Ast*> rhs;
 
@@ -443,7 +461,7 @@ ProcTypeDefn *parse_proc_type(Parser *P) {
             }
         }
 
-        Param *param = ast_new<Param>();
+        ValueDecl *param = ast_new<ValueDecl>();
         param->lhs = lhs;
         param->rhs = rhs;
         param->type_defn = type_defn;
@@ -454,12 +472,11 @@ ProcTypeDefn *parse_proc_type(Parser *P) {
 
     Token close = expect_token(P, Token_CloseParen);
 
-    Ast *ret_type = nullptr;
+    Array<Ast*> results;
     if (match_token(P, Token_Arrow)) {
-        ret_type = parse_type(P);
+        results = parse_type_list(P);
     }
-
-    proc_type->return_type = ret_type;
+    proc_type->results = results;
 
     return proc_type;
 }
@@ -535,11 +552,11 @@ Ast *parse_operand(Parser *P) {
 
             Token close = expect_token(P, Token_CloseBracket);
 
-            Ast *elem = parse_type(P);
+            Ast *operand = parse_type(P);
 
             ArrayTypeDefn *type = ast_new<ArrayTypeDefn>();
             type->size = size;
-            type->elem = elem;
+            type->operand = operand;
             type->open = open;
             type->close = close;
             return type;
@@ -802,7 +819,7 @@ Ast *parse_simple_stmt(Parser *P) {
     Array<Ast*> rhs;
     if (match_token(P, Token_Colon)) {
         Ast *type_defn = nullptr;
-        bool is_constant = false;
+        bool mut = false;
 
         for (Ast *name : lhs) {
             if (name->kind != Ast_Ident) {
@@ -813,9 +830,9 @@ Ast *parse_simple_stmt(Parser *P) {
         if (match_token(P, Token_Colon)) {
             // compile-time constant
             rhs = parse_expr_list(P);
-            is_constant = true;
         } else {
             // non compile-time constant
+            mut = true;
             type_defn = parse_type(P);
 
             if (match_token(P, Token_Assign)) {
@@ -827,9 +844,9 @@ Ast *parse_simple_stmt(Parser *P) {
         vd->lhs = lhs;
         vd->rhs = rhs;
         vd->type_defn = type_defn;
-        vd->is_constant = is_constant;
+        vd->is_mutable = mut;
 
-        if (!is_constant) {
+        if (mut) {
             expect_token(P, Token_Semicolon);
         }
         return vd;
@@ -891,13 +908,8 @@ Ast *parse_stmt(Parser *P) {
 
             while_stmt->condition = condition;
 
-            Ast *prev_control = P->control_target;
-            P->control_target = while_stmt;
-
             BlockExpr *block = parse_block_expr(P);
             while_stmt->block = block;
-
-            P->control_target = prev_control;
 
             stmt = while_stmt;
             break;
@@ -908,15 +920,10 @@ Ast *parse_stmt(Parser *P) {
 
             DoStmt *do_stmt = ast_new<DoStmt>();
 
-            Ast *prev_control = P->control_target;
-            P->control_target = do_stmt;
-
             BlockExpr *block = parse_block_expr(P);
 
             expect_token(P, Token_While);
             Ast *condition = parse_expr(P);
-
-            P->control_target = prev_control;
 
             do_stmt->condition = condition;
             do_stmt->block = block;
@@ -937,12 +944,7 @@ Ast *parse_stmt(Parser *P) {
 
             for_stmt->condition = condition;
 
-            Ast *prev_control = P->control_target;
-            P->control_target = for_stmt;
-
             BlockExpr *block = parse_block_expr(P);
-
-            P->control_target = prev_control;
 
             for_stmt->block = block;
             for_stmt->token = token;
@@ -953,6 +955,8 @@ Ast *parse_stmt(Parser *P) {
         case Token_Break: {
             Token token = expect_token(P, Token_Break);
             BreakStmt *break_stmt = ast_new<BreakStmt>();
+            Ast *expr = parse_expr(P);
+            break_stmt->expr = expr;
             break_stmt->token = token;
             stmt = break_stmt;
             break;
@@ -977,8 +981,8 @@ Ast *parse_stmt(Parser *P) {
         case Token_Return: {
             Token token = expect_token(P, Token_Return);
             ReturnStmt *ret = ast_new<ReturnStmt>();
-            Ast *expr = parse_expr(P);
-            ret->expr = expr;
+            Array<Ast*> results = parse_expr_list(P);
+            ret->results = results;
             ret->token = token;
             stmt = ret;
             break;
