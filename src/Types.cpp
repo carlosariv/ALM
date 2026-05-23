@@ -28,3 +28,39 @@ Type *t_i32 = &g_builtin_types[Type_I32];
 Type *t_i64 = &g_builtin_types[Type_I64];
 Type *t_f32 = &g_builtin_types[Type_F32];
 Type *t_f64 = &g_builtin_types[Type_F64];
+Type *t_string = &g_builtin_types[Type_String];
+
+void *type_alloc(int bytes) {
+    void *mem = malloc(bytes);
+    return mem;
+}
+
+bool type_match(Type *lhs, Type *rhs) {
+    if (lhs == rhs) return true;
+    return false;
+}
+
+int get_type_arity(Type *type) {
+    switch (type->kind) {
+        default:
+            return 1;
+        case Type_Void:
+            return 0;
+        case Type_Tuple: {
+            int count = 0;
+            TupleType *tup = static_cast<TupleType*>(type);
+            for (int i = 0; i < tup->types.count; i++) {
+                count += get_type_arity(tup->types[i]);
+            }
+            return count;
+        }
+    }
+}
+
+
+
+PointerType *pointer_type_create(Type *base) {
+    PointerType *pointer_type = type_new<PointerType>();
+    pointer_type->base = base;
+    return pointer_type;
+}

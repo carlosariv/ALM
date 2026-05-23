@@ -3,6 +3,8 @@
 #include "Array.h"
 #include "String.h"
 
+struct TupleType;
+
 enum TypeKind {
     Type_Unknown,
     Type_BuiltinBegin,
@@ -20,15 +22,15 @@ enum TypeKind {
     Type_F64,
     Type_BuiltinEnd,
 
+    Type_String,
     Type_Pointer,
     Type_Array,
     Type_Any,
     Type_Enum,
     Type_Struct,
     Type_Union,
-    Type_Procedure,
+    Type_Proc,
     Type_Tuple,
-    Type_String,
 
     Type_COUNT
 };
@@ -56,12 +58,20 @@ struct ArrayType : Type {
     }
 };
 
-struct ProcedureType : Type {
-    Type *argument_type;
-    Type *return_type;
+struct StructType : Type {
+    Array<Type*> members;
 
-    ProcedureType() {
-        kind = Type_Procedure;
+    StructType() {
+        kind = Type_Struct;
+    }
+};
+
+struct ProcType : Type {
+    TupleType *params;
+    Type *results;
+
+    ProcType() {
+        kind = Type_Proc;
     }
 };
 
@@ -85,3 +95,16 @@ extern Type *t_i32;
 extern Type *t_i64;
 extern Type *t_f32;
 extern Type *t_f64;
+extern Type *t_string;
+
+void *type_alloc(int bytes);
+
+template <typename T>
+T *type_new() {
+    T *type = (T *)type_alloc(sizeof(T));
+    return type;
+}
+
+bool type_match(Type *lhs, Type *rhs);
+int get_type_arity(Type *type);
+PointerType *pointer_type_create(Type *t);
