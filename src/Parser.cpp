@@ -427,6 +427,18 @@ Ast *parse_type(Parser *P) {
     return expr;
 }
 
+Array<Ident*> parse_name_list(Parser *P) {
+    Array<Ident*> names;
+    for (;;) {
+        Ident *name = parse_name(P);
+        if (name == nullptr) break;
+        names.append(name);
+
+        if (!match_token(P, Token_Comma)) break;
+    }
+    return names;
+}
+
 ProcTypeDefn *parse_proc_type(Parser *P) {
     Token open = expect_token(P, Token_OpenParen);
 
@@ -435,36 +447,41 @@ ProcTypeDefn *parse_proc_type(Parser *P) {
     bool named = false;
 
     while (!is_token(P, Token_CloseParen)) {
-        Array<Ast*> lhs = parse_expr_list(P);
-        if (lhs.count == 0) {
+        Array<Ident*> names = parse_name_list(P);
+        if (names.count == 0) {
             break;
         }
 
         Ast *type_defn = nullptr;
-        Array<Ast*> rhs;
+        Ast *default_value = nullptr;
 
         if (match_token(P, Token_Colon)) {
             named = true;
             type_defn = parse_type(P);
 
-            if (type_defn) {
-                if (match_token(P, Token_Assign)) {
-                    rhs = parse_expr_list(P);
-                    if (rhs.count == 0) {
-                        report_parser_error(P, "missing expression after '='");
-                    }
+            if (match_token(P, Token_Assign)) {
+                Array<Ast*> rhs = parse_expr_list(P);
+                if (rhs.count == 1) {
+                    default_value = rhs[0];
+                } else if (rhs.count == 0) {
+                    report_parser_error(P, "missing expression after '='");
+                } else if (names.count > 1 || rhs.count > 1) {
+                    report_parser_error(P, "default parameter values can only be single values");
                 }
             }
         } else {
             if (named) {
                 report_parser_error(P, "expected ':' after field list, got {}", string_from_token(peek_token(P)));
+            } else {
+                names.reset();
+                type_defn = names[0];
             }
         }
 
-        ValueDecl *param = ast_new<ValueDecl>();
-        param->lhs = lhs;
-        param->rhs = rhs;
+        Param *param = ast_new<Param>();
+        param->names = names;
         param->type_defn = type_defn;
+        param->default_value = default_value;
         proc_type->params.add(param);
 
         if (!match_token(P, Token_Comma)) break;
@@ -713,6 +730,8 @@ Ast *parse_primary_expr(Parser *P, Ast *operand) {
                 CallExpr *call = ast_new<CallExpr>();
                 call->arguments = arguments;
                 call->operand = operand;
+                call->open = open;
+                call->close = close;
                 operand = call;
                 break;
             }
@@ -821,11 +840,16 @@ Ast *parse_simple_stmt(Parser *P) {
         Ast *type_defn = nullptr;
         bool mut = false;
 
+        Array<Ident*> names;
         for (Ast *name : lhs) {
-            if (name->kind != Ast_Ident) {
+            if (name->kind == Ast_Ident) {
+                names.append(static_cast<Ident*>(name));
+            } else {
                 report_parser_error(P, "left hand side of value declaration must be identifiers");
             }
         }
+
+        type_defn = parse_type(P);
 
         if (match_token(P, Token_Colon)) {
             // compile-time constant
@@ -833,7 +857,6 @@ Ast *parse_simple_stmt(Parser *P) {
         } else {
             // non compile-time constant
             mut = true;
-            type_defn = parse_type(P);
 
             if (match_token(P, Token_Assign)) {
                 rhs = parse_expr_list(P);
@@ -841,8 +864,8 @@ Ast *parse_simple_stmt(Parser *P) {
         }
 
         ValueDecl *vd = ast_new<ValueDecl>();
-        vd->lhs = lhs;
-        vd->rhs = rhs;
+        vd->names = names;
+        vd->values = rhs;
         vd->type_defn = type_defn;
         vd->is_mutable = mut;
 
@@ -1295,7 +1318,7 @@ scan_begin:
             break;
         }
 
-        case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U': case 'V': case 'W': case 'X': case 'Z':
+        case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z':
         case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n': case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u': case 'v': case 'w': case 'x': case 'y': case 'z':
         case '_': {
             while (isalnum(peek_char(P)) || peek_char(P) == '_') {

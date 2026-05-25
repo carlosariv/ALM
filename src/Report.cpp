@@ -6,7 +6,7 @@ Token ast_start_token(Ast *node) {
     switch (node->kind) {
         case Ast_ValueDecl: {
             AST_X(vd, ValueDecl);
-            return ast_start_token(vd->lhs[0]);
+            return ast_start_token(vd->names[0]);
         }
 
         case Ast_Assign: {
@@ -113,6 +113,14 @@ Token ast_start_token(Ast *node) {
             return ast_start_token(de->operand);
         }
 
+        case Ast_Param: {
+            AST_X(param, Param);
+            if (param->names.count > 0) {
+                return ast_start_token(param->names[0]);
+            }
+            return ast_start_token(param->type_defn);
+        }
+
         case Ast_ProcType: {
             AST_X(pt, ProcTypeDefn);
             return pt->open;
@@ -155,8 +163,8 @@ Token ast_end_token(Ast *node) {
     switch (node->kind) {
         case Ast_ValueDecl: {
             AST_X(vd, ValueDecl);
-            if (!vd->rhs.is_empty()) {
-                return ast_end_token(vd->rhs[vd->rhs.count-1]);
+            if (!vd->values.is_empty()) {
+                return ast_end_token(vd->values[vd->values.count-1]);
             } else {
                 return ast_end_token(vd->type_defn);
             }
@@ -272,6 +280,15 @@ Token ast_end_token(Ast *node) {
         case Ast_DerefExpr: {
             AST_X(de, DerefExpr);
             return de->token;
+        }
+
+        case Ast_Param: {
+            AST_X(param, Param);
+            if (param->default_value) {
+                return ast_end_token(param->default_value);
+            } else {
+                return ast_end_token(param->type_defn);
+            }
         }
 
         case Ast_ProcType: {
