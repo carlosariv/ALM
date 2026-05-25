@@ -12,12 +12,6 @@ namespace fs = std::filesystem;
 #include "Parser.h"
 #include "Resolve.h"
 
-template<typename... Args>
-void simple_wrapper_println(std::format_string<Args...> fmt, Args&&... args) {
-    std::print("[LOG] "); // Print the prefix
-    std::println(fmt, std::forward<Args>(args)...); // Print the rest and a newline
-}
-
 void process_command_line_args(CommandLineOpts *opts, std::span<char*, std::dynamic_extent> args) {
     for (char * &ptr : args) {
         std::string_view arg(ptr);
@@ -60,8 +54,6 @@ void parser_load_file(Parser *parser, std::string filename) {
 }
 
 int main(int argc, char **argv) {
-    // simple_wrapper_println("\x1b[31mHello, Red!\x1b[0m");
-
     CommandLineOpts opts;
 
     process_command_line_args(&opts, std::span(argv + 1, argc - 1));
