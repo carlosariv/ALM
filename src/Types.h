@@ -4,10 +4,10 @@
 #include "String.h"
 
 struct TupleType;
+struct Ast;
 
 enum TypeKind {
     Type_Unknown,
-    Type_BuiltinBegin,
     Type_Void,
     Type_Bool,
     Type_U8,
@@ -20,7 +20,6 @@ enum TypeKind {
     Type_I64,
     Type_F32,
     Type_F64,
-    Type_BuiltinEnd,
 
     Type_String,
     Type_Pointer,
@@ -51,6 +50,8 @@ struct PointerType : Type {
 
 struct ArrayType : Type {
     Type *base;
+    // Ast *size;
+    bool is_dynamic = false;
     // CompileTimeValue fixed_size;
 
     ArrayType() {
@@ -102,9 +103,12 @@ void *type_alloc(int bytes);
 template <typename T>
 T *type_new() {
     T *type = (T *)type_alloc(sizeof(T));
+    *type = T();
     return type;
 }
 
-bool type_match(Type *lhs, Type *rhs);
 int get_type_arity(Type *type);
+bool type_match(Type *lhs, Type *rhs);
+
 PointerType *pointer_type_create(Type *t);
+ArrayType *array_type_create(Type *base, Ast *size, bool is_dynamic);

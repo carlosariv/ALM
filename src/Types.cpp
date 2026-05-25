@@ -57,10 +57,15 @@ int get_type_arity(Type *type) {
     }
 }
 
-
-
 PointerType *pointer_type_create(Type *base) {
     PointerType *pointer_type = type_new<PointerType>();
     pointer_type->base = base;
     return pointer_type;
+}
+
+ArrayType *array_type_create(Type *base, Ast *size, bool is_dynamic) {
+    ArrayType *array_type = type_new<ArrayType>();
+    // array_type->size = size;
+    array_type->is_dynamic = is_dynamic;
+    return array_type;
 }
