@@ -66,6 +66,6 @@ Atom *atom_create(char *str, usize len) {
     return atom_create(String((u8 *)str, len));
 }
 
-String get_string(Atom *atom) {
+String to_string(Atom *atom) {
     return String(atom->text, atom->len);
 }
