@@ -25,4 +25,3 @@ String string_concat(String const &a, String const &b) {
     text[len] = 0;
     return make_string(text, len);
 }
-

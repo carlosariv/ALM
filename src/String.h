@@ -29,13 +29,10 @@ struct StringHasher {
 };
 
 template<>
-struct std::formatter<String> {
-    constexpr auto parse(std::format_parse_context &ctx) {
-        return ctx.begin();
-    }
-
+struct std::formatter<String> : std::formatter<string_view> {
     auto format(const String &s, std::format_context &ctx) const {
-        return std::format_to(ctx.out(), "{:.{}}", (char *)s.text, s.len);
+        std::string_view sv = s.len==0 ? "" : std::string_view((char *)s.text, s.len);
+        return std::formatter<std::string_view>::format(sv, ctx);
     }
 };
 
