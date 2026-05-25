@@ -48,6 +48,7 @@ enum AstKind {
     Ast_StarExpr,
     Ast_DerefExpr,
 
+    Ast_Param,
     Ast_ProcType,
     Ast_ProcLit,
     Ast_ArrayType,
@@ -109,13 +110,24 @@ struct Ident : Ast {
 };
 
 struct ValueDecl : Ast {
-    Array<Ast*> lhs;
-    Array<Ast*> rhs;
+    Array<Ident*> names;
+    Array<Ast*> values;
     Ast *type_defn;
     bool is_mutable;
+    bool forward_declared = false;
 
     ValueDecl() {
         kind = Ast_ValueDecl;
+    }
+};
+
+struct Param : Ast {
+    Array<Ident*> names;
+    Ast *type_defn;
+    Ast *default_value;
+
+    Param() {
+        kind = Ast_Param;
     }
 };
 
@@ -369,7 +381,7 @@ struct ReturnStmt : Ast {
 };
 
 struct ProcTypeDefn : Ast {
-    Array<ValueDecl*> params;
+    Array<Param*> params;
     Array<Ast*> results;
     Token open;
     Token close;
@@ -382,7 +394,7 @@ struct ProcTypeDefn : Ast {
 struct ArrayTypeDefn : Ast {
     Ast *operand;
     Ast *size;
-    bool dynamic;
+    bool dynamic = false;
     Token open;
     Token close;
 
@@ -434,7 +446,14 @@ struct EnumTypeDefn : Ast {
     }
 };
 
+enum ProcCheckState {
+    ProcCheckState_Nil,
+    ProcCheckState_Signature,
+    ProcCheckState_Complete,
+};
+
 struct ProcLit : Ast {
+    ProcCheckState check_state = ProcCheckState_Nil;
     ProcTypeDefn *proc_type;
     BlockExpr *body;
 
@@ -455,3 +474,4 @@ T *ast_new() {
 void ast_print(Ast *node);
 String string_from_token(TokenKind token);
 String string_from_operator(Operator op);
+

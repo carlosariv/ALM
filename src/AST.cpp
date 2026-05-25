@@ -70,10 +70,33 @@ void ast_print(Ast *node) {
             break;
         }
 
+        case Ast_Param: {
+            Param *param = static_cast<Param*>(node);
+            ast_out("(");
+            for (Ident *name : param->names) {
+                ast_print(name);
+                ast_out(",");
+            }
+            ast_out(" ");
+
+            if (param->type_defn) {
+                ast_print(param->type_defn);
+                ast_out(" ");
+            }
+
+            if (param->default_value) {
+                ast_out(" = ");
+                ast_print(param->default_value);
+            }
+
+            ast_out(")");
+            break;
+        }
+
         case Ast_ProcType: {
             ProcTypeDefn *proc_type = static_cast<ProcTypeDefn*>(node);
             ast_out("(");
-            for (ValueDecl *param : proc_type->params) {
+            for (Param *param : proc_type->params) {
                 ast_print(param);
             }
             ast_out(")");
@@ -104,7 +127,7 @@ void ast_print(Ast *node) {
         case Ast_ValueDecl: {
             ValueDecl *decl = static_cast<ValueDecl*>(node);
             ast_out("(decl ");
-            for (Ast *name : decl->lhs) {
+            for (Ast *name : decl->names) {
                 ast_print(name);
                 ast_out(" ");
             }
@@ -113,9 +136,9 @@ void ast_print(Ast *node) {
                 ast_print(decl->type_defn);
             }
 
-            if (decl->rhs.count > 0) {
+            if (decl->values.count > 0) {
                 ast_out("(");
-                for (Ast *expr : decl->rhs) {
+                for (Ast *expr : decl->values) {
                     ast_print(expr);
                     ast_out("\n");
                 }
