@@ -6,34 +6,35 @@ struct Type;
 struct Parser;
 
 enum ResolveState {
-    ResolveState_NotStarted,
-    ResolveState_Begun,
+    ResolveState_UnInit,
+    ResolveState_InProgress,
     ResolveState_Completed,
 };
 
 enum DeclKind {
     Decl_Nil,
-    Decl_Constant,
     Decl_Var,
     Decl_Type,
     Decl_ProcGroup,
     Decl_Proc,
+    Decl_Constant,
 };
 
 struct Decl {
     DeclKind kind = Decl_Nil;
-    ResolveState resolve_state = ResolveState_NotStarted;
+    ResolveState resolve_state = ResolveState_UnInit;
     Atom *name = nullptr;
     Scope *scope = nullptr;
 
-    ValueDecl *vd = nullptr;
-    Type *type = nullptr;
-
-    // ProcGroup
-    Array<Decl*> procedures;
+    Ast *node = nullptr;
+    Ast *init_expr = nullptr;
+    Ast *type_defn = nullptr;
     ProcLit *proc_lit = nullptr;
 
+    Type *type = nullptr;
     ComptimeValue ct_value;
+
+    Array<Decl*> procedures; 
 };
 
 struct Scope {

@@ -1,21 +1,17 @@
+// Value Declarations:
+// There are declarations that are out of order such as globals and declarations within type definitions.
+// In order declarations are evaluated as they appear.
+// Out of order declarations are first forward declared so that they can be evaluated later when referenced.
+
 #include <assert.h>
 #include <print>
+#include <algorithm>
 
 #include "Atom.h"
 #include "Ast.h"
 #include "Resolve.h"
 #include "Report.h"
 #include "Types.h"
-
-template <typename T>
-const T& Min(const T& a, const T& b) {
-    return (a < b) ? a : b;
-}
-
-template <typename T>
-const T& Max(const T& a, const T& b) {
-    return (a > b) ? a : b;
-}
 
 //NOTE: Use for hasing atoms
 // uint64_t hash_pointer(void* ptr) {
@@ -26,6 +22,26 @@ const T& Max(const T& a, const T& b) {
 //     return x;
 // }
 
+bool is_proc_lit(Ast *node) {
+    return node->kind == Ast_ProcLit;
+}
+
+//NOTE: To determine if an immutable value declaration is a type declaration or a constant value declaration
+bool is_ast_type(Ast *node) {
+    switch (node->kind) {
+        case Ast_StarExpr:
+        case Ast_ProcType:
+        case Ast_ProcLit:
+        case Ast_ArrayType:
+        case Ast_StructType:
+        case Ast_UnionType:
+        case Ast_EnumType:
+            return true;
+        default:
+            return false;
+    }
+}
+
 ComptimeValue ct_value_int(int int_val) {
     ComptimeValue val = {};
     val.kind = ComptimeValue_Integer;
@@ -34,7 +50,7 @@ ComptimeValue ct_value_int(int int_val) {
 }
 
 void report_redeclaration(Ident *name) {
-    report_error(name, "redeclaration of '{}'", get_string(name->name));
+    report_error(name, "redeclaration of '{}'", name->name);
 }
 
 Scope *scope_create(Scope *parent, Ast *node) {
@@ -44,13 +60,48 @@ Scope *scope_create(Scope *parent, Ast *node) {
     return scope;
 }
 
-Decl *decl_create(Scope *scope, Atom *name) {
-    Decl *decl = new Decl();
-    decl->name = name;
+void scope_insert(Scope *scope, Decl *decl) {
     decl->scope = scope;
-    if (scope) {
-        scope->decl_table.add(decl);
-    }
+    scope->decl_table.append(decl);
+}
+
+Decl *decl_new(DeclKind kind, Atom *name) {
+    Decl *decl = new Decl;
+    decl->kind = kind;
+    decl->name = name;
+    return decl;
+}
+
+Decl *decl_var_create(Scope *scope, Atom *name) {
+    Decl *decl = decl_new(Decl_Var, name);
+    scope_insert(scope, decl);
+    return decl;
+}
+
+Decl *decl_proc_group_create(Scope *scope, Atom *name) {
+    Decl *decl = decl_new(Decl_ProcGroup, name);
+    scope_insert(scope, decl);
+    return decl;
+}
+
+Decl *decl_proc_create(Decl *proc_group, Atom *name, ProcLit *proc_lit) {
+    Decl *decl = decl_new(Decl_Proc, name);
+    decl->proc_lit = proc_lit;
+    proc_group->procedures.append(decl);
+    return decl;
+}
+
+Decl *decl_type_create(Scope *scope, Atom *name, Ast *value) {
+    Decl *decl = decl_new(Decl_Type, name);
+    decl->type_defn = value;
+    scope_insert(scope, decl);
+    return decl;
+}
+
+Decl *decl_constant_create(Scope *scope, Atom *name, Ast *value) {
+    Decl *decl = decl_new(Decl_Constant, name);
+    decl->init_expr = value;
+    scope_insert(scope, decl);
     return decl;
 }
 
@@ -109,8 +160,7 @@ Ast *find_control_target(Scope *scope, AstKind stmt) {
 
 void add_global_constant_int(Resolver *R, String name, int val) {
     ComptimeValue ct_val = ct_value_int(val);
-    Decl *decl = decl_create(R->global_scope, atom_create(name));
-    decl->kind = Decl_Constant;
+    Decl *decl = decl_constant_create(R->global_scope, atom_create(name), nullptr);
     decl->type = t_i64;
     decl->resolve_state = ResolveState_Completed;
 }
@@ -118,16 +168,33 @@ void add_global_constant_int(Resolver *R, String name, int val) {
 void resolve_value_decl(Resolver *R, ValueDecl *vd, bool is_global);
 void resolve_expr(Resolver *R, Ast *expr);
 void resolve_stmt(Resolver *R, Ast *stmt);
+void resolve_decl(Resolver *R, Decl *decl);
+void resolve_type(Resolver *R, Ast *expr);
+
+void resolve_param(Resolver *R, Param *param);
+void resolve_proc_type(Resolver *R, ProcTypeDefn *pt);
+void resolve_proc_signature(Resolver *R, ProcLit *proc_lit);
+void resolve_proc_lit(Resolver *R, ProcLit *proc_lit);
+
 
 void resolve_name(Resolver *R, Ident *name) {
     Scope *scope = R->scope;
     Decl *decl = decl_lookup(scope, name->name);
 
-    if (decl != nullptr) {
+    if (decl) {
+        if (decl->kind == Decl_ProcGroup) {
+            for (int i = 0; i < decl->procedures.count; i++) {
+                Decl *proc = decl->procedures[i];
+                resolve_proc_signature(R, proc->proc_lit);
+                proc->type = proc->proc_lit->proc_type->type;
+            }
+        } else {
+            resolve_decl(R, decl);
+            name->type = decl->type;
+        }
         name->ref = decl;
-        name->type = decl->type;
     } else {
-        report_error(name, "could not find identifier'{}'", get_string(name->name));
+        report_error(name, "could not find identifier '{}'", name->name);
     }
 }
 
@@ -183,6 +250,149 @@ void resolve_subscript_expr(Resolver *R, SubscriptExpr *se) {
     }
 }
 
+void resolve_proc_signature(Resolver *R, ProcLit *proc_lit) {
+    if (proc_lit->check_state >= ProcCheckState_Signature) return;
+
+    resolve_proc_type(R, proc_lit->proc_type);
+
+    proc_lit->check_state = ProcCheckState_Signature;
+}
+
+void forward_declare_value_decl(Resolver *R, Scope *scope, ValueDecl *vd) {
+    bool is_global = R->global_scope == scope;
+
+    if (vd->is_mutable) {
+        for (int i = 0; i < vd->names.count; i++) {
+            Ident *name = vd->names[i];
+            Decl *lookup = decl_find(scope, name->name);
+            if (!lookup) {
+                Decl *decl = decl_var_create(scope, name->name);
+                decl->node = vd;
+                name->ref = decl;
+            } else {
+                report_redeclaration(name);
+            }
+        }
+
+        if (is_global) {
+            int value_count = vd->values.count;
+            if (vd->names.count < vd->values.count) {
+                value_count = vd->names.count;
+            }
+
+            for (int i = 0; i < value_count; i++) {
+                Ident *name = vd->names[i];
+                Decl *decl = name->ref;
+                decl->init_expr = vd->values[i];
+                decl->type_defn = vd->type_defn;
+            }
+        }
+    } else {
+        assert(vd->names.count == vd->values.count);
+        int value_count = std::min(vd->names.count, vd->values.count);
+
+        for (int i = 0 ; i < value_count; i++) {
+            Ident *name = vd->names[i];
+            Ast *value = vd->values[i];
+
+            Decl *lookup = decl_find(scope, name->name);
+            if (lookup) {
+                //NOTE: Report redeclaration if either of one of current or lookup are not procedures and the other is.
+                if (lookup->kind == Decl_ProcGroup) {
+                    Decl *proc_group = lookup;
+                    if (is_proc_lit(value)) {
+                        Decl *proc = decl_proc_create(proc_group, name->name, static_cast<ProcLit*>(value));
+                        name->ref = proc;
+                        proc->node = vd;
+                        proc->proc_lit = static_cast<ProcLit*>(value);
+                    } else {
+                        report_redeclaration(name);
+                    }
+                } else if (is_proc_lit(value)) {
+                    report_redeclaration(name);
+                }
+            } else {
+                Decl *decl = nullptr;
+                if (is_proc_lit(value)) {
+                    Decl *proc_group = decl_proc_group_create(scope, name->name);
+                    decl = decl_proc_create(proc_group, name->name, static_cast<ProcLit*>(value));
+                } else if (is_ast_type(value)) {
+                    decl = decl_type_create(scope, name->name, value);
+                } else {
+                    decl = decl_constant_create(scope, name->name, value);
+                }
+                name->ref = decl;
+                decl->node = vd;
+            }
+        }
+    }
+
+    vd->forward_declared = true;
+}
+
+void resolve_type_decl(Resolver *R, Decl *type_decl) {
+    resolve_expr(R, type_decl->type_defn);
+    //TODO: check if expression evals to a type
+    type_decl->type = type_decl->type_defn->type;
+}
+
+void resolve_proc_decl(Resolver *R, Decl *proc_decl) {
+    resolve_proc_signature(R, proc_decl->proc_lit);
+
+    resolve_proc_lit(R, proc_decl->proc_lit);
+}
+
+void resolve_var_decl(Resolver *R, Decl *var_decl) {
+    ValueDecl *vd = static_cast<ValueDecl*>(var_decl->node);
+    if (vd->type_defn) {
+        resolve_type(R, vd->type_defn);
+        var_decl->type = vd->type_defn->type;
+    }
+
+    if (var_decl->init_expr) {
+        resolve_expr(R, var_decl->init_expr);
+    }
+}
+
+void resolve_constant_decl(Resolver *R, Decl *constant_decl) {
+    resolve_expr(R, constant_decl->init_expr);
+    //TODO: check if expression evals to a constant
+    constant_decl->type = constant_decl->init_expr->type;
+}
+
+void resolve_decl(Resolver *R, Decl *decl) {
+    if (decl->resolve_state == ResolveState_Completed) return;
+
+    if (decl->resolve_state == ResolveState_InProgress) {
+        report_error(decl->node, "cyclical resolution of declaration");
+        return;
+    }
+
+    decl->resolve_state = ResolveState_InProgress;
+
+    switch (decl->kind) {
+        case Decl_Nil:
+        case Decl_ProcGroup:
+            assert(0);
+            break;
+
+        case Decl_Type:
+            resolve_type_decl(R, decl);
+            break;
+        case Decl_Var:
+            resolve_var_decl(R, decl);
+            break;
+        case Decl_Constant:
+            resolve_constant_decl(R, decl);
+            break;
+        case Decl_Proc:
+            resolve_proc_decl(R, decl);
+            break;
+    }
+
+    decl->resolve_state = ResolveState_Completed;
+}
+
 int get_type_arity(Array<Ast*> list) {
     int count = 0;
     for (Ast *elem : list) {
@@ -221,41 +431,45 @@ bool check_argument_procedure_type_match(Array<Ast*> arguments, TupleType *param
     return true;
 }
 
+ProcLit *find_procedure_overloaded(Decl *proc_group, Array<Ast*> arguments) {
+    for (Decl *proc : proc_group->procedures) {
+        ProcLit *proc_lit = proc->proc_lit;
+        ProcType *proc_type = static_cast<ProcType*>(proc_lit->proc_type->type);
+
+        if (check_argument_procedure_type_match(arguments, proc_type->params)) {
+            return proc_lit;
+        }
+    }
+    return nullptr;
+}
 
 void resolve_call_expr(Resolver *R, CallExpr *ce) {
-    resolve_expr(R, ce->operand);
-
     for (Ast *arg : ce->arguments) {
         resolve_expr(R, arg);
     }
 
+    resolve_expr(R, ce->operand);
+
     if (ce->operand->kind == Ast_Ident) {
         Ident *name = static_cast<Ident*>(ce->operand);
-        Decl *proc_group = name->ref;
+        Decl *decl = name->ref;
 
-        if (proc_group) {
-            ProcLit *callee = nullptr;
-
-            for (Decl *proc : proc_group->procedures) {
-                ProcLit *proc_lit = proc->proc_lit;
-                ProcType *proc_type = static_cast<ProcType*>(proc_lit->proc_type->type);
-
-                if (check_argument_procedure_type_match(ce->arguments, proc_type->params)) {
-                    callee = proc_lit;
-                    break;
-                }
-            }
+        if (decl->kind == Decl_ProcGroup) {
+            Decl *proc_group = decl;
+            ProcLit *callee = find_procedure_overloaded(proc_group, ce->arguments);
 
             if (callee) {
                 ProcType *proc_type = static_cast<ProcType*>(callee->proc_type->type);
                 ce->type = proc_type->results;
             } else {
                 if (proc_group->procedures.count == 1) {
-                    report_error(ce, "invalid argument types for procedure '{}'", get_string(name->name));
+                    report_error(ce, "invalid argument types for procedure '{}'", name->name);
                 } else {
                     report_error(ce, "no procedure with matching argument types found");
                 }
             }
+        } else {
+            report_error(ce->operand, "'{}' is not a procedure", name->name);
         }
     } else {
         if (ce->operand->type->kind == Type_Proc) {
@@ -276,9 +490,14 @@ void resolve_paren_expr(Resolver *R, ParenExpr *pe) {
 }
 
 void resolve_block_expr(Resolver *R, BlockExpr *block) {
+    Scope *scope = scope_create(R->scope, block);
+    R->scope = scope;
+
     for (Ast *stmt : block->statements) {
         resolve_stmt(R, stmt);
     }
+
+    R->scope = scope->parent;
 }
 
 void resolve_compound_literal(Resolver *R, CompoundLiteralExpr *comp) {
@@ -288,7 +507,6 @@ void resolve_compound_literal(Resolver *R, CompoundLiteralExpr *comp) {
         resolve_expr(R, v);
     }
 }
-
 
 void resolve_if_expr(Resolver *R, IfExpr *if_expr) {
     resolve_expr(R, if_expr->condition);
@@ -310,35 +528,84 @@ void resolve_deref_expr(Resolver *R, DerefExpr *deref_expr) {
     resolve_expr(R, deref_expr->operand);
 }
 
-void resolve_proc_type(Resolver *R, ProcTypeDefn *proc_type) {
-    for (ValueDecl *param : proc_type->params) {
-        resolve_value_decl(R, param, false);
+void resolve_param(Resolver *R, Param *param) {
+    if (param->type_defn) {
+        resolve_type(R, param->type_defn);
     }
 
-    for (Ast *ret : proc_type->results) {
-        resolve_expr(R, ret);
-    }
-}
-
-void resolve_proc_lit(Resolver *R, ProcLit *proc_lit) {
-    Scope *scope = scope_create(R->scope, proc_lit);
-    R->scope = scope;
-
-    resolve_proc_type(R, proc_lit->proc_type);
-    if (proc_lit->body) {
-        resolve_block_expr(R, proc_lit->body);
+    if (param->default_value) {
+        resolve_expr(R, param->default_value);
     }
 
-    R->scope = scope->parent;
-}
+    if (param->type_defn && param->default_value) {
+        if (!type_match(param->type_defn->type, param->default_value->type)) {
+            report_error(param, "type mismatch for default ");
+        }
+    }
 
-void resolve_array_type(Resolver *R, ArrayTypeDefn *array_type) {
-    resolve_expr(R, array_type->operand);
-
-    if (array_type->size) {
-        resolve_expr(R, array_type->size);
+    if (param->type_defn) {
+        param->type = param->type_defn->type;
+    } else if (param->default_value) {
+        param->type = param->default_value->type;
     }
 }
+
+void resolve_proc_type(Resolver *R, ProcTypeDefn *pt) {
+    Array<Type*> params;
+    for (Param *param : pt->params) {
+        resolve_param(R, param);
+
+        for (int i = 0; i < param->names.count; i++) {
+            params.append(param->type_defn->type);
+        }
+    }
+
+    for (Ast *ret : pt->results) {
+        resolve_type(R, ret);
+    }
+
+    Type *results = nullptr;
+    if (pt->results.count == 1) {
+        results = pt->results[0]->type;
+    } else if (pt->results.count > 1) {
+        TupleType *tup = type_new<TupleType>();
+        for (Ast *ret : pt->results) {
+            tup->types.append(ret->type);
+        }
+        results = tup;
+    }
+
+    ProcType *proc_type = type_new<ProcType>();
+    proc_type->params = type_new<TupleType>();
+    proc_type->params->types = params;
+    proc_type->results = results;
+    pt->type = proc_type;
+}
+
+void resolve_pointer_type(Resolver *R, StarExpr *pointer) {
+    resolve_type(R, pointer->elem);
+    PointerType *type = pointer_type_create(pointer->elem->type);
+    pointer->type = type;
+}
+
+void resolve_array_type(Resolver *R, ArrayTypeDefn *array) {
+    resolve_type(R, array->operand);
+
+    if (array->size) {
+        resolve_expr(R, array->size);
+    }
+
+    ArrayType *type = array_type_create(array->operand->type, array->size, array->dynamic);
+    array->type = type;
+}
+
+
+void resolve_union_type(Resolver *R, UnionTypeDefn *ut) {
+}
+
+void resolve_enum_type(Resolver *R, EnumTypeDefn *et) {
+}
+
 
 void resolve_struct_type(Resolver *R, StructTypeDefn *type_defn) {
     StructType *st = ast_new<StructType>();
@@ -358,13 +625,71 @@ void resolve_struct_type(Resolver *R, StructTypeDefn *type_defn) {
     R->scope = scope->parent;
 }
 
-void resolve_union_type(Resolver *R, UnionTypeDefn *union_type) {
-}
-
-void resolve_enum_type(Resolver *R, EnumTypeDefn *enum_type) {
-}
-
 void resolve_enumerator(Resolver *R, Enumerator *enumerator) {
+}
+
+
+void resolve_type(Resolver *R, Ast *expr) {
+    switch (expr->kind) {
+        default:
+            assert(0);
+            break;
+        case Ast_Ident:
+            resolve_name(R, (Ident *)expr);
+            break;
+
+        case Ast_ProcType:
+            resolve_proc_type(R, (ProcTypeDefn *)expr);
+            break;
+
+        case Ast_StarExpr:
+            resolve_pointer_type(R, (StarExpr *)expr);
+            break;
+
+        case Ast_ArrayType:
+            resolve_array_type(R, (ArrayTypeDefn *)expr);
+            break;
+
+        case Ast_StructType:
+            resolve_struct_type(R, (StructTypeDefn *)expr);
+            break;
+
+        case Ast_UnionType:
+            resolve_union_type(R, (UnionTypeDefn *)expr);
+            break;
+
+        case Ast_EnumType:
+            resolve_enum_type(R, (EnumTypeDefn *)expr);
+            break;
+    }
+}
+
+void resolve_proc_lit(Resolver *R, ProcLit *proc_lit) {
+    resolve_proc_type(R, proc_lit->proc_type);
+
+    Scope *scope = scope_create(R->scope, proc_lit);
+    R->scope = scope;
+
+    for (Param *param : proc_lit->proc_type->params) {
+        for (Ident *name : param->names) {
+            Decl *lookup = decl_find(scope, name->name);
+            if (lookup) {
+                report_redeclaration(name);
+            } else {
+                Decl *decl = decl_var_create(scope, name->name);
+                decl->resolve_state = ResolveState_Completed;
+                decl->node = param;
+                name->ref = decl;
+                decl->type = param->type;
+            }
+        }
+    }
+
+    if (proc_lit->body) {
+        resolve_block_expr(R, proc_lit->body);
+    }
+
+    R->scope = scope->parent;
 }
 
 void resolve_expr(Resolver *R, Ast *expr) {
@@ -441,124 +766,50 @@ void resolve_expr(Resolver *R, Ast *expr) {
     }
 }
 
+void resolve_value_decl_stmt(Resolver *R, ValueDecl *vd) {
+    Scope *scope = R->scope;
+
+    forward_declare_value_decl(R, scope, vd);
+
+    resolve_value_decl(R, vd, false);
+}
+
 void resolve_value_decl(Resolver *R, ValueDecl *vd, bool is_global) {
     Scope *scope = R->scope;
 
-    if (!vd->is_mutable) {
-        if (vd->lhs.count != vd->rhs.count) {
-            report_error(vd, "number of right hand values does not match number of left side, in constant value declaration");
-        }
-    }
-
     if (is_global) {
         if (vd->is_mutable) {
-            if (vd->lhs.count <= vd->rhs.count) {
+            if (vd->names.count <= vd->values.count) {
             } else {
                 report_error(vd, "too many values on right hand side");
             }
+        } else {
+            if (vd->names.count != vd->values.count) {
+                report_error(vd, "number of right hand values does not match number of left side, in constant value declaration");
+            }
+        }
+
+        for (int i = 0; i < vd->names.count; i++) {
+            Ident *name = vd->names[i];
+            Decl *decl = name->ref;
+            resolve_decl(R, decl);
         }
     } else {
-        for (Ast *expr : vd->lhs) {
-            assert(expr->kind == Ast_Ident);
-            Ident *name = static_cast<Ident*>(expr);
-
-            Decl *lookup = decl_find(scope, name->name);
-            if (lookup) {
-                report_redeclaration(name);
-            } else {
-                Decl *Decl = decl_create(scope, name->name);
-                Decl->vd = vd;
-                name->ref = Decl;
-            }
+        if (vd->type_defn) {
+            resolve_expr(R, vd->type_defn);
         }
-    }
 
-    if (vd->type_defn) {
-        resolve_expr(R, vd->type_defn);
-    }
-
-    for (Ast *expr : vd->rhs) {
-        resolve_expr(R, expr);
-    }
-
-    if (vd->type_defn) {
-        for (Ast *rhs : vd->rhs) {
-            if (!type_match(vd->type_defn->type, rhs->type)) {
-                report_error(rhs, "right hand side of declaration does not match specified type");
-            }
+        for (Ast *expr : vd->values) {
+            resolve_expr(R, expr);
         }
-    }
-}
 
-Decl *proc_decl_create(Atom *name, ProcLit *proc_lit, ValueDecl *vd) {
-    Decl *proc = decl_create(nullptr, name);
-    proc->kind = Decl_Proc;
-    proc->proc_lit = proc_lit;
-    proc->vd = vd;
-    return proc;
-}
-
-void register_value_decl(Resolver *R, Scope *scope, ValueDecl *vd) {
-    if (!vd->is_mutable) {
-        assert(vd->lhs.count == vd->rhs.count);
-        int value_count = Min(vd->lhs.count, vd->rhs.count);
-        for (int i = 0 ; i < value_count; i++) {
-            Ident *name = static_cast<Ident*>(vd->lhs[i]);
-            Ast *rhs = vd->rhs[i];
-
-            Decl *lookup = decl_find(scope, name->name);
-            if (lookup) {
-                name->ref = lookup;
-
-                if (lookup->kind == Decl_ProcGroup) {
-                    if (rhs->kind == Ast_ProcLit) {
-                        Decl *proc = proc_decl_create(name->name, static_cast<ProcLit*>(rhs), vd);
-                        name->ref = proc;
-                        lookup->procedures.append(proc);
-                    } else {
-                        report_redeclaration(name);
-                    }
-                } else if (rhs->kind == Ast_ProcLit) {
-                    report_redeclaration(name);
-                }
-            } else {
-                Decl *decl = decl_create(scope, name->name);
-                //NOTE: Register procedure groups to not falsely report redeclaration
-                if (rhs->kind == Ast_ProcLit) {
-                    decl->kind = Decl_ProcGroup;
-                    Decl *proc = proc_decl_create(name->name, static_cast<ProcLit*>(rhs), vd);
-                    name->ref = proc;
-                    decl->procedures.append(proc);
-                } else {
-                    decl->vd = vd;
-                    name->ref = decl;
+        if (vd->type_defn) {
+            for (Ast *rhs : vd->values) {
+                if (!type_match(vd->type_defn->type, rhs->type)) {
+                    report_error(rhs, "right hand side of declaration does not match specified type");
                 }
             }
         }
-    } else {
-        for (int i = 0; i < vd->lhs.count; i++) {
-            Ident *name = static_cast<Ident*>(vd->lhs[i]);
-            Decl *lookup = decl_find(scope, name->name);
-            if (!lookup) {
-                Decl *decl = decl_create(scope, name->name);
-                decl->kind = Decl_Var;
-                decl->vd = vd;
-                name->ref = decl;
-            } else {
-                report_redeclaration(name);
-            }
-        }
-    }
-}
-
-void register_top_level_stmt(Resolver *R, Ast *node) {
-    switch (node->kind) {
-        default:
-            break;
-
-        case Ast_ValueDecl:
-            register_value_decl(R, R->global_scope, static_cast<ValueDecl*>(node));
-            break;
     }
 }
 
@@ -679,7 +930,7 @@ void resolve_stmt(Resolver *R, Ast *stmt) {
             break;
 
         case Ast_ValueDecl:
-            resolve_value_decl(R, (ValueDecl *)stmt, is_global);
+            resolve_value_decl_stmt(R, (ValueDecl *)stmt);
             break;
         case Ast_Assign:
             resolve_assign_stmt(R, (AssignStmt *)stmt);
@@ -729,37 +980,61 @@ void resolve_top_level_stmt(Resolver *R, Ast *node) {
     }
 }
 
-void register_builtin_types(Resolver *R) {
+void declare_builtin_types(Resolver *R) {
     Scope *scope = R->global_scope;
-    for (TypeKind kind = Type_BuiltinBegin; kind < Type_BuiltinEnd; kind = (TypeKind)(kind + 1)) {
+    for (TypeKind kind = Type_Void; kind <= Type_F64; kind = (TypeKind)(kind + 1)) {
         Type *type = &g_builtin_types[kind];
         Atom *name = atom_create(type->name);
-        Decl *Decl = decl_create(scope, name);
-        Decl->kind = Decl_Type;
-        Decl->resolve_state = ResolveState_Completed;
-        Decl->type = type;
+        Decl *decl = decl_type_create(scope, name, nullptr);
+        decl->kind = Decl_Type;
+        decl->resolve_state = ResolveState_Completed;
+        decl->type = type;
     }
 }
+
+template<>
+struct std::formatter<DeclKind> : std::formatter<string_view> {
+    auto format(DeclKind kind, format_context& ctx) const {
+        string_view name = "";
+        switch (kind) {
+            default: name = "nil"; break;
+            case Decl_Constant:  name = "Constant"; break;
+            case Decl_Var:       name = "Var"; break;
+            case Decl_Type:      name = "Type"; break;
+            case Decl_ProcGroup: name = "ProcGroup"; break;
+            case Decl_Proc:      name = "Proc"; break;
+        }
+        return formatter<string_view>::format(name, ctx);
+    }
+};
 
 void resolve_program(Resolver *R, Parser *P) {
     Scope *global_scope = scope_create(nullptr, nullptr);
     R->global_scope = global_scope;
     R->scope = global_scope;
 
-    register_builtin_types(R);
+    declare_builtin_types(R);
 
     add_global_constant_int(R, STRZ("true"), 1);
     add_global_constant_int(R, STRZ("false"), 0);
 
     for (AstFile *file : R->files) {
-        for (Ast *stmt : file->decls) {
-            register_top_level_stmt(R, stmt);
+        for (Ast *node : file->decls) {
+            if (node->kind == Ast_ValueDecl) {
+                forward_declare_value_decl(R, global_scope, static_cast<ValueDecl*>(node));
+            }
+        }
+    }
+
+    if (0) {
+        for (Decl *decl : global_scope->decl_table) {
+            std::println("DECL '{}' {}", decl->name, decl->kind);
         }
     }
 
     //NOTE: Compute actual type of string type
     Decl *string_type = decl_find(global_scope, atom_create(STRZ("string")));
-    resolve_top_level_stmt(R, string_type->vd);
+    resolve_top_level_stmt(R, string_type->node);
     t_string = string_type->type;
 
     for (AstFile *file : R->files) {
