@@ -626,6 +626,21 @@ void resolve_deref_expr(Resolver *R, DerefExpr *deref_expr) {
     resolve_expr(R, deref_expr->operand);
 }
 
+void resolve_cast_expr(Resolver *R, CastExpr *cast_expr) {
+    resolve_type(R, cast_expr->conversion_type);
+    resolve_expr(R, cast_expr->operand);
+
+    if (types_castable(cast_expr->operand->type, cast_expr->conversion_type->type)) {
+        cast_expr->type = cast_expr->conversion_type->type;
+        cast_expr->mode = AddressingMode_Value;
+    } else {
+        String op_type = string_from_type(cast_expr->operand->type);
+        String conv_type = string_from_type(cast_expr->conversion_type->type);
+        report_error(cast_expr, "cannot cast '{}' to '{}", op_type, conv_type);
+    }
+
+}
+
 void resolve_param(Resolver *R, Param *param) {
     if (param->type_defn) {
         resolve_type(R, param->type_defn);
@@ -837,6 +852,9 @@ void resolve_expr(Resolver *R, Ast *expr) {
             break;
         case Ast_DerefExpr:
             resolve_deref_expr(R, (DerefExpr *)expr);
+            break;
+        case Ast_CastExpr:
+            resolve_cast_expr(R, (CastExpr *)expr);
             break;
 
         case Ast_ProcType:

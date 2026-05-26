@@ -36,7 +36,28 @@ void *type_alloc(int bytes) {
     return mem;
 }
 
+bool types_castable(Type *dst, Type *src) {
+    assert(dst && src);
 
+    if (dst == src) return true;
+
+    if (is_numeric_type(dst) && is_numeric_type(src)) {
+        return true;
+    }
+
+    if (is_pointer_type(dst) && is_array_type(src)) {
+        return true;
+    }
+    if (is_pointer_type(dst) && is_string_type(src)) {
+        return true;
+    }
+
+    if (is_proc_type(dst) && is_proc_type(src)) {
+        return true;
+    }
+
+    return false;
+}
 
 //@Note: Type Equality rules
 // User defined types have to point to same distinct type such as structs, unions, enums, and procs

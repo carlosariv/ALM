@@ -47,6 +47,7 @@ enum AstKind {
     Ast_IfCaseExpr,
     Ast_StarExpr,
     Ast_DerefExpr,
+    Ast_CastExpr,
 
     Ast_Param,
     Ast_ProcType,
@@ -297,7 +298,17 @@ struct DerefExpr : Ast {
     DerefExpr() {
         kind = Ast_DerefExpr;
     }
- };
+};
+
+struct CastExpr : Ast {
+    Ast *conversion_type;
+    Ast *operand;
+    Token token;
+
+    CastExpr() {
+        kind = Ast_CastExpr;
+    }
+};
 
 struct EmptyStmt : Ast {
     Token token;

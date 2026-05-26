@@ -110,10 +110,13 @@ Token ast_start_token(Ast *node) {
             AST_X(se, StarExpr);
             return se->token;
         }
-
         case Ast_DerefExpr: {
             AST_X(de, DerefExpr);
             return ast_start_token(de->operand);
+        }
+        case Ast_CastExpr: {
+            AST_X(ce, CastExpr);
+            return ce->token;
         }
 
         case Ast_Param: {
@@ -283,6 +286,10 @@ Token ast_end_token(Ast *node) {
         case Ast_DerefExpr: {
             AST_X(de, DerefExpr);
             return de->token;
+        }
+        case Ast_CastExpr: {
+            AST_X(ce, CastExpr);
+            return ast_end_token(ce->operand);
         }
 
         case Ast_Param: {

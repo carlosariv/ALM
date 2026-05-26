@@ -107,6 +107,7 @@ T *type_new() {
 
 int type_arity(Type *type);
 bool types_equal(Type *lhs, Type *rhs);
+bool types_castable(Type *dst, Type *src);
 
 PointerType *pointer_type_create(Type *t);
 ArrayType *array_type_create(Type *base, Ast *size, bool is_dynamic);
@@ -130,6 +131,10 @@ inline bool is_pointer_type(Type *type) {
 
 inline bool is_array_type(Type *type) {
     return type->kind == Type_Array;
+}
+
+inline bool is_string_type(Type *type) {
+    return type->kind == Type_String;
 }
 
 inline bool is_proc_type(Type *type) {
@@ -165,5 +170,25 @@ inline bool is_integer_type(Type *type) {
         case Type_I64:
         case Type_Enum:
             return true;
+    }
+}
+
+inline bool is_numeric_type(Type *type) {
+    switch (type->kind) {
+        case Type_Bool:
+        case Type_U8:
+        case Type_U16:
+        case Type_U32:
+        case Type_U64:
+        case Type_I8:
+        case Type_I16:
+        case Type_I32:
+        case Type_I64:
+        case Type_F32:
+        case Type_F64:
+        case Type_Enum:
+            return true;
+        default:
+            return false;
     }
 }

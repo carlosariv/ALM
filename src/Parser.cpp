@@ -763,6 +763,22 @@ Ast *parse_unary_expr(Parser *P) {
         default:
             return parse_primary_expr(P, parse_operand(P));
 
+        case Token_Cast: {
+            Token token = expect_token(P, Token_Cast);
+
+            Token open = expect_token(P, Token_OpenParen);
+            Ast *type = parse_type(P);
+            Token close = expect_token(P, Token_CloseParen);
+
+            Ast *operand = parse_unary_expr(P);
+
+            CastExpr *cast_expr = ast_new<CastExpr>();
+            cast_expr->conversion_type = type;
+            cast_expr->operand = operand;
+            cast_expr->token = token;
+            return cast_expr;
+        }
+
         case Token_Minus:
         case Token_Star:
         case Token_Plus: {

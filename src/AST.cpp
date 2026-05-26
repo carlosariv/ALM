@@ -338,6 +338,16 @@ void ast_print(Ast *node) {
             break;
         }
 
+        case Ast_CastExpr: {
+            CastExpr *ce = static_cast<CastExpr*>(node);
+            ast_out("(cast ");
+            ast_print(ce->conversion_type);
+            ast_out(" ");
+            ast_print(ce->operand);
+            ast_out(")");
+            break;
+        }
+
         case Ast_EnumType: {
             EnumTypeDefn *et = static_cast<EnumTypeDefn*>(node);
             ast_out("(enum \n");
