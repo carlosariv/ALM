@@ -71,6 +71,7 @@ X(Token_Using, "using") \
 X(Token_While, "while") \
 X(Token_For, "for") \
 X(Token_Do, "do") \
+X(Token_Cast, "cast") \
 X(Token_Break, "break") \
 X(Token_Continue, "continue") \
 X(Token_Fallthrough, "fallthrough") \
