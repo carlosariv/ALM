@@ -149,6 +149,18 @@ void ast_print(Ast *node) {
             break;
         }
 
+        case Ast_ArrayExpr: {
+            ArrayExpr *ae = static_cast<ArrayExpr*>(node);
+            ast_out("[");
+            for (int i = 0; i < ae->elems.count; i++) {
+                Ast *elem = ae->elems[i];
+                ast_print(elem);
+                if (i < ae->elems.count - 1) ast_out(", ");
+            }
+            ast_out("]");
+            break;
+        }
+
         case Ast_CompoundLiteral: {
             CompoundLiteralExpr *cl = static_cast<CompoundLiteralExpr*>(node);
             ast_out("(compound ");

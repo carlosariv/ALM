@@ -565,18 +565,31 @@ Ast *parse_operand(Parser *P) {
         case Token_OpenBracket: {
             Token open = expect_token(P, Token_OpenBracket);
 
-            Ast *size = parse_expr(P);
+            if (P->allow_type) {
+                Ast *size = parse_expr(P);
+
+                Token close = expect_token(P, Token_CloseBracket);
+
+                Ast *operand = parse_type(P);
+
+                ArrayTypeDefn *type = ast_new<ArrayTypeDefn>();
+                type->size = size;
+                type->operand = operand;
+                type->open = open;
+                type->close = close;
+                return type;
+            }
+
+            Array<Ast*> elems = parse_expr_list(P);
 
             Token close = expect_token(P, Token_CloseBracket);
 
-            Ast *operand = parse_type(P);
+            ArrayExpr *array_expr = ast_new<ArrayExpr>();
 
-            ArrayTypeDefn *type = ast_new<ArrayTypeDefn>();
-            type->size = size;
-            type->operand = operand;
-            type->open = open;
-            type->close = close;
-            return type;
+            array_expr->elems = elems;
+            array_expr->open = open;
+            array_expr->close = close;
+            return array_expr;
         }
 
         case Token_OpenParen: {

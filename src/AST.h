@@ -42,6 +42,7 @@ enum AstKind {
     Ast_CallExpr,
     Ast_ParenExpr,
     Ast_BlockExpr,
+    Ast_ArrayExpr,
     Ast_CompoundLiteral,
     Ast_IfExpr,
     Ast_IfCaseExpr,
@@ -78,11 +79,20 @@ struct ComptimeValue {
     };
 };
 
+enum AddressingMode {
+    AddressingMode_Invalid,
+    AddressingMode_Type,
+    AddressingMode_Variable,
+    AddressingMode_Value,
+    AddressingMode_Constant,
+    AddressingMode_Procedure,
+};
+
 struct Ast {
     AstKind kind = Ast_Error;
+    AddressingMode mode = AddressingMode_Invalid;
     Type *type = nullptr;
     ComptimeValue ct_value;
-    bool is_comptime = false;
 };
 
 struct AstError : Ast {
@@ -180,6 +190,15 @@ struct BinaryExpr : Ast {
 
     BinaryExpr() {
         kind = Ast_BinaryExpr;
+    }
+};
+
+struct ArrayExpr : Ast {
+    Array<Ast*> elems;
+    Token open;
+    Token close;
+    ArrayExpr() {
+        kind = Ast_ArrayExpr;
     }
 };
 
