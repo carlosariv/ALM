@@ -112,3 +112,58 @@ PointerType *pointer_type_create(Type *t);
 ArrayType *array_type_create(Type *base, Ast *size, bool is_dynamic);
 
 String string_from_type(Type *type);
+
+inline bool is_user_defined_type(Type *type) {
+    switch (type->kind) {
+        case Type_Struct:
+        case Type_Enum:
+        case Type_Union:
+            return true;
+        default:
+            return false;
+    }
+}
+
+inline bool is_pointer_type(Type *type) {
+    return type->kind == Type_Pointer;
+}
+
+inline bool is_array_type(Type *type) {
+    return type->kind == Type_Array;
+}
+
+inline bool is_proc_type(Type *type) {
+    return type->kind == Type_Proc;
+}
+
+inline bool is_tuple_type(Type *type) {
+    return type->kind == Type_Tuple;
+}
+
+inline bool is_array_like_type(Type *type) {
+    switch (type->kind) {
+        default:
+            return false;
+        case Type_Array:
+        case Type_Pointer:
+            return true;
+    }
+}
+
+inline bool is_integer_type(Type *type) {
+    switch (type->kind) {
+        default:
+            return false;
+        case Type_Bool:
+        case Type_U8:
+        case Type_U16:
+        case Type_U32:
+        case Type_U64:
+        case Type_I8:
+        case Type_I16:
+        case Type_I32:
+        case Type_I64:
+        case Type_Enum:
+            return true;
+    }
+}

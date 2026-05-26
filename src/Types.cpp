@@ -36,32 +36,7 @@ void *type_alloc(int bytes) {
     return mem;
 }
 
-bool is_user_defined_type(Type *type) {
-    switch (type->kind) {
-        case Type_Struct:
-        case Type_Enum:
-        case Type_Union:
-            return true;
-        default:
-            return false;
-    }
-}
 
-bool is_pointer_type(Type *type) {
-    return type->kind == Type_Pointer;
-}
-
-bool is_array_type(Type *type) {
-    return type->kind == Type_Array;
-}
-
-bool is_proc_type(Type *type) {
-    return type->kind == Type_Proc;
-}
-
-bool is_tuple_type(Type *type) {
-    return type->kind == Type_Tuple;
-}
 
 //@Note: Type Equality rules
 // User defined types have to point to same distinct type such as structs, unions, enums, and procs
