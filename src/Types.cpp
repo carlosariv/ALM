@@ -3,6 +3,7 @@
 
 Type g_builtin_types[] = {
     {Type_Unknown, STRZ("<unknown>"), 0},
+    {Type_Invalid, STRZ("<invalid>"), 0},
     {Type_Void,    STRZ("void"),      0},
     {Type_Bool,    STRZ("bool"),      1},
     {Type_U8,      STRZ("u8"),        1},
@@ -18,6 +19,7 @@ Type g_builtin_types[] = {
 };
 
 Type *t_void = &g_builtin_types[Type_Void];
+Type *t_invalid = &g_builtin_types[Type_Invalid];
 Type *t_bool = &g_builtin_types[Type_Bool];
 Type *t_u8 = &g_builtin_types[Type_U8];
 Type *t_u16 = &g_builtin_types[Type_U16];
@@ -39,6 +41,9 @@ void *type_alloc(int bytes) {
 bool types_castable(Type *dst, Type *src) {
     assert(dst && src);
 
+    //@Note: Type for an already poisoned expression shouldn't error out.
+    if (dst == t_invalid || src == t_invalid) return true;
+
     if (dst == src) return true;
 
     if (is_numeric_type(dst) && is_numeric_type(src)) {
@@ -59,62 +64,76 @@ bool types_castable(Type *dst, Type *src) {
     return false;
 }
 
-//@Note: Type Equality rules
+//@Note: Type Assignable rules
 // User defined types have to point to same distinct type such as structs, unions, enums, and procs
 // Procedure types have to match signature, params and results
-// Builtin types have to be identical
+// Builtin types have to be identical except integers
+// Type narr
 // Tuple subtypes must match and equal arity. Tuples can equal non-tuples as tuples can be a single value.
 
-bool types_equal(Type *lhs, Type *rhs) {
-    assert(lhs && rhs);
-    if (lhs == rhs) return true;
+bool types_assignable(Type *dst, Type *src) {
+    assert(dst && src);
 
-    if (is_user_defined_type(lhs) || is_user_defined_type(rhs)) {
+    //@Note: Type for an already poisoned expression shouldn't error out.
+    if (dst == t_invalid || src == t_invalid) return true;
+
+    if (dst == src) return true;
+
+    if (is_user_defined_type(dst) || is_user_defined_type(src)) {
         return false;
     }
 
-    if (is_pointer_type(lhs) != is_pointer_type(rhs)) {
+    if (is_pointer_type(dst) != is_pointer_type(src)) {
         return false;
-    } else if (is_pointer_type(lhs)) {
-        return types_equal(lhs->base, rhs->base);
+    } else if (is_pointer_type(dst)) {
+        return types_assignable(dst->base, src->base);
     }
 
-    if (is_array_type(lhs) != is_array_type(rhs)) {
-        return false;
-    } else if (is_array_type(lhs)) {
-        return types_equal(lhs->base, rhs->base);
+    //@Note: Type narrowing
+    if (is_integer_type(dst) && is_integer_type(src)) {
+        if (is_signed_type(dst) == is_signed_type(src)) {
+            return dst->bytes >= src->bytes;
+        } else { 
+            return false;
+        }
     }
 
-    if (is_proc_type(lhs) != is_proc_type(rhs)) {
+    if (is_array_type(dst) != is_array_type(src)) {
         return false;
-    } else if (is_proc_type(lhs)) {
-        ProcType *l = static_cast<ProcType*>(lhs);
-        ProcType *r = static_cast<ProcType*>(rhs);
-
-        return types_equal(l->params, r->params) && types_equal(l->results, r->results);
+    } else if (is_array_type(dst)) {
+        return types_assignable(dst->base, src->base);
     }
 
-    if (is_tuple_type(lhs) || is_tuple_type(rhs)) {
-        int left_arity = type_arity(lhs);
-        int right_arity = type_arity(rhs);
+    if (is_proc_type(dst) != is_proc_type(src)) {
+        return false;
+    } else if (is_proc_type(dst)) {
+        ProcType *l = static_cast<ProcType*>(dst);
+        ProcType *r = static_cast<ProcType*>(src);
+
+        return types_assignable(l->params, r->params) && types_assignable(l->results, r->results);
+    }
+
+    if (is_tuple_type(dst) || is_tuple_type(src)) {
+        int left_arity = type_arity(dst);
+        int right_arity = type_arity(src);
         if (left_arity != right_arity) return false;
 
         if (left_arity == 1) {
-            Type *l = lhs, *r = rhs;
-            if (is_tuple_type(lhs)) {
-                l = static_cast<TupleType*>(lhs)->types[0];
+            Type *l = dst, *r = src;
+            if (is_tuple_type(dst)) {
+                l = static_cast<TupleType*>(dst)->types[0];
             }
-            if (is_tuple_type(rhs)) {
-                r = static_cast<TupleType*>(rhs)->types[0];
+            if (is_tuple_type(src)) {
+                r = static_cast<TupleType*>(src)->types[0];
             }
 
-            return types_equal(l, r);
+            return types_assignable(l, r);
         } else {
-            assert(is_tuple_type(lhs) && is_tuple_type(rhs));
-            TupleType *tl = static_cast<TupleType*>(lhs);
-            TupleType *tr = static_cast<TupleType*>(rhs);
+            assert(is_tuple_type(dst) && is_tuple_type(src));
+            TupleType *tl = static_cast<TupleType*>(dst);
+            TupleType *tr = static_cast<TupleType*>(src);
             for (int i = 0; i < tl->types.count; i++) {
-                if (!types_equal(tl->types[i], tr->types[i])) {
+                if (!types_assignable(tl->types[i], tr->types[i])) {
                     return false;
                 }
             }
@@ -122,7 +141,7 @@ bool types_equal(Type *lhs, Type *rhs) {
         }
     }
 
-    if (lhs->kind == Type_String && rhs->kind == Type_String) return true;
+    if (dst->kind == Type_String && src->kind == Type_String) return true;
 
     return false;
 }

@@ -214,6 +214,7 @@ void resolve_name(Resolver *R, Ident *name) {
         }
     } else {
         report_error(name, "could not find identifier '{}'", name->name);
+        name->type = t_invalid;
     }
 }
 
@@ -253,15 +254,47 @@ void resolve_literal_expr(Resolver *R, LiteralExpr *le) {
 
 void resolve_unary_expr(Resolver *R, UnaryExpr *ue) {
     resolve_expr(R, ue->operand);
-    ue->type = ue->operand->type;
-    ue->mode = AddressingMode_Value;
+
+    Ast *operand = ue->operand;
+
+    switch (ue->op) {
+        default:
+            break;
+        case Operator_UnaryPlus:
+            if (is_arithmetic_type(operand->type)) {
+                ue->type = operand->type;
+                ue->mode = AddressingMode_Value;
+            } else {
+                report_error(ue, "bad operator '+' on a non-arithmetic type");
+                ue->type = t_invalid;
+            }
+            break;
+        case Operator_Negate:
+            if (is_arithmetic_type(operand->type)) {
+                ue->type = get_signed_type(operand->type);
+                ue->mode = AddressingMode_Value;
+            } else {
+                report_error(ue, "bad operator '-' on a non-arithmetic type");
+                ue->type = t_invalid;
+            }
+            break;
+        case Operator_AddressOf:
+            if (operand->mode == AddressingMode_Variable) {
+                ue->type = pointer_type_create(ue->type);
+                ue->mode = AddressingMode_Variable;
+            } else {
+                report_error(ue, "cannot take address of a non r-value expression");
+                ue->type = t_invalid;
+            }
+            break;
+    }
 }
 
 void resolve_binary_expr(Resolver *R, BinaryExpr *be) {
     resolve_expr(R, be->lhs);
     resolve_expr(R, be->rhs);
 
-    if (types_equal(be->lhs->type, be->rhs->type)) {
+    if (types_assignable(be->lhs->type, be->rhs->type)) {
         report_error(be, "types of operands mismatch");
     }
 
@@ -423,7 +456,7 @@ int type_arity(Array<Ast*> list) {
     return count;
 }
 
-bool check_argument_procedure_types_equal(Array<Ast*> arguments, TupleType *params) {
+bool check_argument_procedure_types_assignable(Array<Ast*> arguments, TupleType *params) {
     if (type_arity(arguments) != type_arity(params)) {
         return false;
     }
@@ -436,14 +469,14 @@ bool check_argument_procedure_types_equal(Array<Ast*> arguments, TupleType *para
             for (int t = 0; t < arg_arity; t++) {
                 Type *param_type = params->types[param_idx];
                 Type *arg_type = tup->types[t];
-                if (!types_equal(param_type, arg_type)) {
+                if (!types_assignable(param_type, arg_type)) {
                     return false;
                 }
                 param_idx++;
             }
         } else {
             Type *param_type = params->types[param_idx];
-            if (!types_equal(param_type, arg->type)) {
+            if (!types_assignable(param_type, arg->type)) {
                 return false;
                 break;
             }
@@ -458,7 +491,7 @@ ProcLit *find_procedure_overloaded(Decl *proc_group, Array<Ast*> arguments) {
         ProcLit *proc_lit = proc->proc_lit;
         ProcType *proc_type = static_cast<ProcType*>(proc_lit->proc_type->type);
 
-        if (check_argument_procedure_types_equal(arguments, proc_type->params)) {
+        if (check_argument_procedure_types_assignable(arguments, proc_type->params)) {
             return proc_lit;
         }
     }
@@ -496,7 +529,7 @@ void resolve_call_expr(Resolver *R, CallExpr *ce) {
     } else {
         if (ce->operand->type->kind == Type_Proc) {
             ProcType *proc_type = static_cast<ProcType*>(ce->operand->type);
-            if (check_argument_procedure_types_equal(ce->arguments, proc_type->params)) {
+            if (check_argument_procedure_types_assignable(ce->arguments, proc_type->params)) {
                 ce->type = proc_type->results;
             } else {
                 report_error(ce, "invalid argument types for callee");
@@ -565,7 +598,7 @@ void resolve_array_expr(Resolver *R, ArrayExpr *array) {
         String base_type_string = string_from_type(base_type);
 
         for (Ast *elem : array->elems) {
-            if (!types_equal(base_type, elem->type)) {
+            if (!types_assignable(base_type, elem->type)) {
                 String elem_type_string = string_from_type(elem->type);
                 report_error(elem, "invalid element of type '{}' in array of type '[]{}'", elem_type_string, base_type_string);
             }
@@ -637,6 +670,7 @@ void resolve_cast_expr(Resolver *R, CastExpr *cast_expr) {
         String op_type = string_from_type(cast_expr->operand->type);
         String conv_type = string_from_type(cast_expr->conversion_type->type);
         report_error(cast_expr, "cannot cast '{}' to '{}", op_type, conv_type);
+        cast_expr->type = t_invalid;
     }
 
 }
@@ -651,7 +685,7 @@ void resolve_param(Resolver *R, Param *param) {
     }
 
     if (param->type_defn && param->default_value) {
-        if (!types_equal(param->type_defn->type, param->default_value->type)) {
+        if (!types_assignable(param->type_defn->type, param->default_value->type)) {
             report_error(param, "type mismatch for default ");
         }
     }
@@ -922,7 +956,7 @@ void resolve_value_decl(Resolver *R, ValueDecl *vd, bool is_global) {
 
             if (vd->type_defn) {
                 for (Ast *rhs : vd->values) {
-                    if (!types_equal(vd->type_defn->type, rhs->type)) {
+                    if (!types_assignable(vd->type_defn->type, rhs->type)) {
                         report_error(rhs, "right hand side of declaration does not match specified type");
                     }
                 }
@@ -1039,7 +1073,7 @@ void resolve_return_stmt(Resolver *R, ReturnStmt *return_stmt) {
     if (proc_lit) {
         ProcType *proc_type = static_cast<ProcType*>(proc_lit->proc_type->type);
 
-        if (!types_equal(ret_type, proc_type->results)) {
+        if (!types_assignable(ret_type, proc_type->results)) {
             String ret_type_str = string_from_type(ret_type);
             String result_type_str = string_from_type(proc_type->results);
             report_error(return_stmt, "mismatched types, expected '{}' return, got '{}'", result_type_str, ret_type_str);

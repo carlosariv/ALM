@@ -8,6 +8,7 @@ struct Ast;
 
 enum TypeKind {
     Type_Unknown,
+    Type_Invalid,
     Type_Void,
     Type_Bool,
     Type_U8,
@@ -95,6 +96,7 @@ extern Type *t_i64;
 extern Type *t_f32;
 extern Type *t_f64;
 extern Type *t_string;
+extern Type *t_invalid;
 
 void *type_alloc(int bytes);
 
@@ -106,7 +108,7 @@ T *type_new() {
 }
 
 int type_arity(Type *type);
-bool types_equal(Type *lhs, Type *rhs);
+bool types_assignable(Type *lhs, Type *rhs);
 bool types_castable(Type *dst, Type *src);
 
 PointerType *pointer_type_create(Type *t);
@@ -190,5 +192,52 @@ inline bool is_numeric_type(Type *type) {
             return true;
         default:
             return false;
+    }
+}
+
+inline bool is_arithmetic_type(Type *type) {
+    switch (type->kind) {
+        case Type_Bool:
+        case Type_U8:
+        case Type_U16:
+        case Type_U32:
+        case Type_U64:
+        case Type_I8:
+        case Type_I16:
+        case Type_I32:
+        case Type_I64:
+        case Type_F32:
+        case Type_F64:
+        case Type_Enum:
+            return true;
+        default:
+            return false;
+    }
+}
+
+inline bool is_signed_type(Type *type) {
+    switch (type->kind) {
+        case Type_I8:
+        case Type_I16:
+        case Type_I32:
+        case Type_I64:
+            return true;
+        default:
+            return false;
+    }
+}
+
+inline Type *get_signed_type(Type *type) {
+    switch (type->kind) {
+        default:
+            return type;
+        case Type_U8:
+            return t_i8;
+        case Type_U16:
+            return t_i16;
+        case Type_U32:
+            return t_i32;
+        case Type_U64:
+            return t_i64;
     }
 }

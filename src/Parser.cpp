@@ -783,6 +783,7 @@ Ast *parse_unary_expr(Parser *P) {
         case Token_Star:
         case Token_Plus: {
             Token token = P->current_token;
+            next_token(P);
             Ast *operand = parse_unary_expr(P);
             UnaryExpr *unary = ast_new<UnaryExpr>();
             unary->op = unary_operator_from_token(token.kind);
