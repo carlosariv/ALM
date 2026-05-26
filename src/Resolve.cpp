@@ -22,6 +22,8 @@
 //     return x;
 // }
 
+void resolve_value_decl_stmt(Resolver *R, ValueDecl *vd);
+
 bool is_proc_lit(Ast *node) {
     return node->kind == Ast_ProcLit;
 }
@@ -302,7 +304,39 @@ void resolve_binary_expr(Resolver *R, BinaryExpr *be) {
 }
 
 void resolve_selector_expr(Resolver *R, SelectorExpr *se) {
-    resolve_expr(R, se->operand);
+    Ast *operand = se->operand;
+    resolve_expr(R, operand);
+
+    Decl *member = nullptr;
+    switch (operand->type->kind) {
+        default:
+            assert(0);
+            break;
+        case Type_Struct: {
+            StructType *st = static_cast<StructType*>(operand->type);
+            member = decl_find(st->scope, se->name->name);
+            break;
+        }
+        case Type_Union: {
+            UnionType *ut = static_cast<UnionType*>(operand->type);
+            member = decl_find(ut->scope, se->name->name);
+            break;
+        }
+        case Type_Enum: {
+            EnumType *et = static_cast<EnumType*>(operand->type);
+            member = decl_find(et->scope, se->name->name);
+            break;
+        }
+    }
+
+    se->name->ref = member;
+    se->mode = operand->mode;
+
+    if (member) {
+        se->type = member->type;
+    } else {
+        report_error(se->name, "member '{}' not found", se->name->name);
+    }
 }
 
 void resolve_proc_signature(Resolver *R, ProcLit *proc_lit) {
@@ -386,9 +420,11 @@ void forward_declare_value_decl(Resolver *R, Scope *scope, ValueDecl *vd) {
 }
 
 void resolve_type_decl(Resolver *R, Decl *type_decl) {
-    resolve_expr(R, type_decl->type_defn);
+    assert(type_decl->resolve_state != ResolveState_Completed);
+    resolve_type(R, type_decl->type_defn);
     //TODO: check if expression evals to a type
     type_decl->type = type_decl->type_defn->type;
+    type_decl->type->name = to_string(type_decl->name);
 }
 
 void resolve_proc_decl(Resolver *R, Decl *proc_decl) {
@@ -505,6 +541,7 @@ void resolve_call_expr(Resolver *R, CallExpr *ce) {
 
     resolve_expr(R, ce->operand);
 
+    //@Todo: Distinguish identifiers to proc and identifiers to variable of proc type
     if (ce->operand->kind == Ast_Ident) {
         Ident *name = static_cast<Ident*>(ce->operand);
         Decl *decl = name->ref;
@@ -513,14 +550,22 @@ void resolve_call_expr(Resolver *R, CallExpr *ce) {
             Decl *proc_group = decl;
             ProcLit *callee = find_procedure_overloaded(proc_group, ce->arguments);
 
+
             if (callee) {
                 ProcType *proc_type = static_cast<ProcType*>(callee->proc_type->type);
                 ce->type = proc_type->results;
             } else {
+                TupleType *arg_tuple = type_new<TupleType>();
+                for (Ast *arg : ce->arguments) {
+                    arg_tuple->types.append(arg->type);
+                }
+                String arg_type_string = string_from_type(arg_tuple);
                 if (proc_group->procedures.count == 1) {
-                    report_error(ce, "invalid argument types for procedure '{}'", name->name);
+                    ProcType *proc_type = static_cast<ProcType*>(proc_group->procedures[0]->type);
+                    String param_type_string = string_from_type(proc_type->params);
+                    report_error(ce, "invalid argument type(s) '{}' for '{}' which takes '{}'", arg_type_string, name->name, param_type_string);
                 } else {
-                    report_error(ce, "no procedure with matching argument types found");
+                    report_error(ce, "no procedure '{}' that accepts argument types '{}'", name->name, arg_type_string);
                 }
             }
         } else if (decl) {
@@ -532,7 +577,13 @@ void resolve_call_expr(Resolver *R, CallExpr *ce) {
             if (check_argument_procedure_types_assignable(ce->arguments, proc_type->params)) {
                 ce->type = proc_type->results;
             } else {
-                report_error(ce, "invalid argument types for callee");
+                TupleType *arg_tuple = type_new<TupleType>();
+                for (Ast *arg : ce->arguments) {
+                    arg_tuple->types.append(arg->type);
+                }
+                String arg_type_string = string_from_type(arg_tuple);
+                String param_type_string = string_from_type(proc_type->params);
+                report_error(ce, "invalid argument type(s) '{}', procedure takes '{}'", arg_type_string, param_type_string);
             }
         } else {
             report_error(ce->operand, "operand is not a procedure type");
@@ -733,6 +784,7 @@ void resolve_pointer_type(Resolver *R, StarExpr *pointer) {
     resolve_type(R, pointer->elem);
     PointerType *type = pointer_type_create(pointer->elem->type);
     pointer->type = type;
+    pointer->mode = AddressingMode_Type;
 }
 
 void resolve_array_type(Resolver *R, ArrayTypeDefn *array) {
@@ -759,10 +811,13 @@ void resolve_struct_type(Resolver *R, StructTypeDefn *type_defn) {
     type_defn->type = st;
 
     Scope *scope = scope_create(R->scope, type_defn);
+    st->scope = scope;
     R->scope = scope;
 
     for (ValueDecl *member : type_defn->members) {
-        resolve_value_decl(R, member, false);
+        //@Todo: Should struct members be resolved out of order?
+        forward_declare_value_decl(R, scope, member);
+        resolve_value_decl(R, member, true);
 
         if (member->is_mutable) {
             st->members.append(member->type);
@@ -930,8 +985,8 @@ void resolve_value_decl(Resolver *R, ValueDecl *vd, bool is_global) {
     if (is_global) {
         if (vd->is_mutable) {
             if (vd->names.count <= vd->values.count) {
-            } else {
                 report_error(vd, "too many values on right hand side");
+            } else {
             }
         } else {
             if (vd->names.count != vd->values.count) {

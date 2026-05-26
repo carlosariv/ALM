@@ -5,6 +5,7 @@
 
 struct TupleType;
 struct Ast;
+struct Scope;
 
 enum TypeKind {
     Type_Unknown,
@@ -60,9 +61,29 @@ struct ArrayType : Type {
 
 struct StructType : Type {
     Array<Type*> members;
+    Scope *scope = nullptr;
 
     StructType() {
         kind = Type_Struct;
+    }
+};
+
+struct UnionType : Type {
+    Array<Type*> members;
+    Scope *scope = nullptr;
+
+    UnionType() {
+        kind = Type_Union;
+    }
+};
+
+
+
+struct EnumType : Type {
+    Scope *scope = nullptr;
+
+    EnumType() {
+        kind =  Type_Enum;
     }
 };
 
