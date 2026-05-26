@@ -95,6 +95,10 @@ Token ast_start_token(Ast *node) {
             AST_X(cl, CompoundLiteralExpr);
             return cl->open;
         }
+        case Ast_ArrayExpr: {
+            AST_X(ae, ArrayExpr);
+            return ae->open;
+        }
         case Ast_IfExpr: {
             AST_X(ie, IfExpr);
             return ie->token;
@@ -264,6 +268,10 @@ Token ast_end_token(Ast *node) {
         case Ast_CompoundLiteral: {
             AST_X(cl, CompoundLiteralExpr);
             return cl->close;
+        }
+        case Ast_ArrayExpr: {
+            AST_X(ae, ArrayExpr);
+            return ae->close;
         }
         case Ast_IfExpr: {
             AST_X(ie, IfExpr);
