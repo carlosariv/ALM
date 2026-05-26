@@ -75,10 +75,6 @@ Token ast_start_token(Ast *node) {
             AST_X(se, SelectorExpr);
             return se->token;
         }
-        case Ast_SubscriptExpr: {
-            AST_X(se, SubscriptExpr);
-            return se->open;
-        }
         case Ast_CallExpr: {
             AST_X(ce, CallExpr);
             return ce->open;
@@ -97,6 +93,9 @@ Token ast_start_token(Ast *node) {
         }
         case Ast_ArrayExpr: {
             AST_X(ae, ArrayExpr);
+            if (ae->operand) {
+                return ast_start_token(ae->operand);
+            }
             return ae->open;
         }
         case Ast_IfExpr: {
@@ -248,10 +247,6 @@ Token ast_end_token(Ast *node) {
         case Ast_SelectorExpr: {
             AST_X(se, SelectorExpr);
             return ast_end_token(se->name);
-        }
-        case Ast_SubscriptExpr: {
-            AST_X(se, SubscriptExpr);
-            return se->close;
         }
         case Ast_CallExpr: {
             AST_X(ce, CallExpr);

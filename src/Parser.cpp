@@ -517,6 +517,21 @@ ParenExpr *parse_paren_expr(Parser *P) {
     return paren;
 }
 
+ArrayExpr *parse_array_expr(Parser *P, Ast *operand) {
+    Token open = expect_token(P, Token_OpenBracket);
+
+    Array<Ast*> elems = parse_expr_list(P);
+
+    Token close = expect_token(P, Token_CloseBracket);
+
+    ArrayExpr *array_expr = ast_new<ArrayExpr>();
+    array_expr->operand = operand;
+    array_expr->elems = elems;
+    array_expr->open = open;
+    array_expr->close = close;
+    return array_expr;
+}
+
 Ast *parse_operand(Parser *P) {
     Token token = P->current_token;
     switch (token.kind) {
@@ -548,7 +563,6 @@ Ast *parse_operand(Parser *P) {
             return expr;
         }
 
-
         case Token_String: {
             next_token(P);
 
@@ -563,9 +577,9 @@ Ast *parse_operand(Parser *P) {
             return parse_star_expr(P);
 
         case Token_OpenBracket: {
-            Token open = expect_token(P, Token_OpenBracket);
-
             if (P->allow_type) {
+                Token open = expect_token(P, Token_OpenBracket);
+
                 Ast *size = parse_expr(P);
 
                 Token close = expect_token(P, Token_CloseBracket);
@@ -580,16 +594,7 @@ Ast *parse_operand(Parser *P) {
                 return type;
             }
 
-            Array<Ast*> elems = parse_expr_list(P);
-
-            Token close = expect_token(P, Token_CloseBracket);
-
-            ArrayExpr *array_expr = ast_new<ArrayExpr>();
-
-            array_expr->elems = elems;
-            array_expr->open = open;
-            array_expr->close = close;
-            return array_expr;
+            return parse_array_expr(P, nullptr);
         }
 
         case Token_OpenParen: {
@@ -665,21 +670,6 @@ Array<Ast*> parse_expr_list(Parser *P) {
     return list;
 }
 
-SubscriptExpr *parse_subscript_expr(Parser *P, Ast *operand) {
-    Token open = expect_token(P, Token_OpenBracket);
-
-    Ast *value = parse_expr(P);
-
-    Token close = expect_token(P, Token_CloseBracket);
-
-    SubscriptExpr *sub = ast_new<SubscriptExpr>();
-    sub->operand = operand;
-    sub->value = value;
-    sub->open = open;
-    sub->close = close;
-    return sub;
-}
-
 SelectorExpr *parse_selector_expr(Parser *P, Ast *operand) {
     Token token = expect_token(P, Token_Dot);
     Ident *name = parse_name(P);
@@ -750,7 +740,7 @@ Ast *parse_primary_expr(Parser *P, Ast *operand) {
             }
 
             case Token_OpenBracket: {
-                operand = parse_subscript_expr(P, operand);
+                operand = parse_array_expr(P, operand);
                 break;
             }
 

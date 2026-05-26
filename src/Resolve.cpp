@@ -176,7 +176,6 @@ void resolve_proc_type(Resolver *R, ProcTypeDefn *pt);
 void resolve_proc_signature(Resolver *R, ProcLit *proc_lit);
 void resolve_proc_lit(Resolver *R, ProcLit *proc_lit);
 
-
 void resolve_name(Resolver *R, Ident *name) {
     Scope *scope = R->scope;
     Decl *decl = decl_lookup(scope, name->name);
@@ -190,6 +189,8 @@ void resolve_name(Resolver *R, Ident *name) {
                 proc->type = proc->proc_lit->proc_type->type;
             }
         } else {
+            //@Todo: Should this be called on a local value declaration statement?
+            // Local value decls are not filled out with the init expressions because of multiple-type values
             resolve_decl(R, decl);
             name->type = decl->type;
 
@@ -223,7 +224,15 @@ void resolve_literal_expr(Resolver *R, LiteralExpr *le) {
         case Literal_Integer:
             value.kind = ComptimeValue_Integer;
             value.integer_value = le->integer_value;
-            type = t_u64;
+            if (value.integer_value <= 255) {
+                type = t_u8;
+            } else if (value.integer_value <= 65535) {
+                type = t_u16;
+            } else if (value.integer_value <= 16777215) {
+                type = t_u32;
+            } else {
+                type = t_u64;
+            }
             break;
         case Literal_Floating:
             value.kind = ComptimeValue_Float;
@@ -261,14 +270,6 @@ void resolve_binary_expr(Resolver *R, BinaryExpr *be) {
 
 void resolve_selector_expr(Resolver *R, SelectorExpr *se) {
     resolve_expr(R, se->operand);
-}
-
-void resolve_subscript_expr(Resolver *R, SubscriptExpr *se) {
-    resolve_expr(R, se->operand);
-
-    if (se->value) {
-        resolve_expr(R, se->value);
-    }
 }
 
 void resolve_proc_signature(Resolver *R, ProcLit *proc_lit) {
@@ -523,9 +524,75 @@ void resolve_block_expr(Resolver *R, BlockExpr *block) {
 
 
 void resolve_array_expr(Resolver *R, ArrayExpr *array) {
-    Type *elem_type = nullptr;
+    if (array->operand) {
+        resolve_expr(R, array->operand);
+    }
+
     for (Ast *elem : array->elems) {
         resolve_expr(R, elem);
+    }
+
+    Ast *operand = array->operand;
+
+    bool is_literal = true;
+    bool is_index = false;
+    if (operand) {
+        switch (operand->mode) {
+            case AddressingMode_Value:
+            case AddressingMode_Variable:
+                is_index = true;
+                is_literal = false;
+                break;
+            case AddressingMode_Type:
+                is_literal = true;
+                break;
+            case AddressingMode_Procedure:
+                report_error(operand, "procedure cannot be indexed");
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (is_literal) {
+        Type *base_type = nullptr;
+        if (operand) {
+            base_type = operand->type;
+        } else if (array->elems.count > 0) {
+            base_type = array->elems[0]->type;
+        }
+
+        String base_type_string = string_from_type(base_type);
+
+        for (Ast *elem : array->elems) {
+            if (!types_equal(base_type, elem->type)) {
+                String elem_type_string = string_from_type(elem->type);
+                report_error(elem, "invalid element of type '{}' in array of type '[]{}'", elem_type_string, base_type_string);
+            }
+        }
+
+        array->type = array_type_create(base_type, nullptr, false);
+        array->mode = AddressingMode_Variable;
+    } else if (is_index) {
+        if (!is_array_like_type(operand->type)) {
+            String operand_type_string = string_from_type(operand->type);
+            report_error(operand, "index operand of type '{}' is not an array or pointer", operand_type_string);
+        }
+
+        if (array->elems.count > 1) {
+            report_error(array->operand, "multiple elements in index value");
+        } else if (array->elems.count == 0) {
+            report_error(array->operand, "missing index value");
+        }
+        Ast *index = array->elems[0];
+
+        if (!is_integer_type(index->type)) {
+            String index_type_string = string_from_type(index->type);
+            report_error(index, "array index value is an invalid non-integer type '{}'", index_type_string);
+        }
+
+        array->type = operand->type->base;
+        array->mode = AddressingMode_Variable;
     }
 }
 
@@ -744,9 +811,6 @@ void resolve_expr(Resolver *R, Ast *expr) {
         case Ast_SelectorExpr:
             resolve_selector_expr(R, (SelectorExpr *)expr);
             break;
-        case Ast_SubscriptExpr:
-            resolve_subscript_expr(R, (SubscriptExpr *)expr);
-            break;
         case Ast_CallExpr:
             resolve_call_expr(R, (CallExpr *)expr);
             break;
@@ -829,19 +893,58 @@ void resolve_value_decl(Resolver *R, ValueDecl *vd, bool is_global) {
             resolve_decl(R, decl);
         }
     } else {
-        if (vd->type_defn) {
-            resolve_expr(R, vd->type_defn);
-        }
+        if (vd->is_mutable) {
+            if (vd->type_defn) {
+                resolve_expr(R, vd->type_defn);
+            }
 
-        for (Ast *expr : vd->values) {
-            resolve_expr(R, expr);
-        }
+            for (Ast *expr : vd->values) {
+                resolve_expr(R, expr);
+            }
 
-        if (vd->type_defn) {
-            for (Ast *rhs : vd->values) {
-                if (!types_equal(vd->type_defn->type, rhs->type)) {
-                    report_error(rhs, "right hand side of declaration does not match specified type");
+            if (vd->type_defn) {
+                for (Ast *rhs : vd->values) {
+                    if (!types_equal(vd->type_defn->type, rhs->type)) {
+                        report_error(rhs, "right hand side of declaration does not match specified type");
+                    }
                 }
+            }
+
+            int value_count = type_arity(vd->values);
+            if (value_count == vd->names.count) {
+                for (int i = 0; i < value_count; i++) {
+                    for (int name_idx = 0, val_idx = 0; val_idx < value_count; val_idx++) {
+                        Ast *value = value = vd->values[val_idx];
+                        if (is_tuple_type(value->type)) {
+                            TupleType *tup = static_cast<TupleType*>(value->type);
+                            for (int ti = 0; ti < tup->types.count; ti++) {
+                                Ident *name = vd->names[name_idx];
+                                Decl *decl = name->ref;
+                                decl->resolve_state = ResolveState_Completed;
+                                Type *type = tup->types[ti];
+                                decl->type = type;
+                                name->type = type;
+                                name_idx++;
+                            }
+                        } else {
+                            Ident *name = vd->names[name_idx];
+                            Decl *decl = name->ref;
+                            decl->resolve_state = ResolveState_Completed;
+                            Type *type = value->type;
+                            decl->type = type;
+                            name->type = type;
+                            name_idx++;
+                        }
+                    }
+                }
+            } else if (value_count > 0) {
+                report_error(vd, "mismatched number of values and names in declaration");
+            }
+        } else {
+            for (Ident *name : vd->names) {
+                Decl *decl = name->ref;
+                resolve_decl(R, decl);
+                name->type = decl->type;
             }
         }
     }

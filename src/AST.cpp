@@ -151,6 +151,9 @@ void ast_print(Ast *node) {
 
         case Ast_ArrayExpr: {
             ArrayExpr *ae = static_cast<ArrayExpr*>(node);
+            if (ae->operand) {
+                ast_print(ae->operand);
+            }
             ast_out("[");
             for (int i = 0; i < ae->elems.count; i++) {
                 Ast *elem = ae->elems[i];
@@ -201,16 +204,6 @@ void ast_print(Ast *node) {
             ast_print(binary->lhs);
             ast_out(" ");
             ast_print(binary->rhs);
-            ast_out(")");
-            break;
-        }
-
-        case Ast_SubscriptExpr: {
-            SubscriptExpr *subscript = static_cast<SubscriptExpr*>(node);
-            ast_out("(subscript ");
-            ast_print(subscript->operand);
-            ast_out(" ");
-            ast_print(subscript->value);
             ast_out(")");
             break;
         }

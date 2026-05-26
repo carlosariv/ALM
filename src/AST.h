@@ -38,7 +38,6 @@ enum AstKind {
     Ast_UnaryExpr,
     Ast_BinaryExpr,
     Ast_SelectorExpr,
-    Ast_SubscriptExpr,
     Ast_CallExpr,
     Ast_ParenExpr,
     Ast_BlockExpr,
@@ -193,7 +192,10 @@ struct BinaryExpr : Ast {
     }
 };
 
+//@Note: Can either be a array literal or a subscript
+// e.g u8[1, 2, 3] or arr[0]
 struct ArrayExpr : Ast {
+    Ast *operand;
     Array<Ast*> elems;
     Token open;
     Token close;
@@ -220,17 +222,6 @@ struct SelectorExpr : Ast {
 
     SelectorExpr() {
         kind = Ast_SelectorExpr;
-    }
-};
-
-struct SubscriptExpr : Ast {
-    Ast *operand;
-    Ast *value;
-    Token open;
-    Token close;
-
-    SubscriptExpr() {
-        kind = Ast_SubscriptExpr;
     }
 };
 
