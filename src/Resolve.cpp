@@ -180,6 +180,7 @@ void resolve_proc_lit(Resolver *R, ProcLit *proc_lit);
 void resolve_name(Resolver *R, Ident *name) {
     Scope *scope = R->scope;
     Decl *decl = decl_lookup(scope, name->name);
+    name->ref = decl;
 
     if (decl) {
         if (decl->kind == Decl_ProcGroup) {
@@ -191,8 +192,25 @@ void resolve_name(Resolver *R, Ident *name) {
         } else {
             resolve_decl(R, decl);
             name->type = decl->type;
+
+            switch (decl->kind) {
+                case Decl_Nil:
+                    break;
+                case Decl_Var:
+                    name->mode = AddressingMode_Variable;
+                    break;
+                case Decl_Type:
+                    name->mode = AddressingMode_Type;
+                    break;
+                case Decl_ProcGroup:
+                case Decl_Proc:
+                    name->mode = AddressingMode_Procedure;
+                    break;
+                case Decl_Constant:
+                    name->mode = AddressingMode_Constant;
+                    break;
+            }
         }
-        name->ref = decl;
     } else {
         report_error(name, "could not find identifier '{}'", name->name);
     }
@@ -219,7 +237,7 @@ void resolve_literal_expr(Resolver *R, LiteralExpr *le) {
             break;
     }
 
-    le->is_comptime = true;
+    le->mode = AddressingMode_Constant;
     le->ct_value = value;
     le->type = type;
 }
@@ -227,15 +245,18 @@ void resolve_literal_expr(Resolver *R, LiteralExpr *le) {
 void resolve_unary_expr(Resolver *R, UnaryExpr *ue) {
     resolve_expr(R, ue->operand);
     ue->type = ue->operand->type;
+    ue->mode = AddressingMode_Value;
 }
 
 void resolve_binary_expr(Resolver *R, BinaryExpr *be) {
     resolve_expr(R, be->lhs);
     resolve_expr(R, be->rhs);
 
-    if (type_match(be->lhs->type, be->rhs->type)) {
+    if (types_equal(be->lhs->type, be->rhs->type)) {
         report_error(be, "types of operands mismatch");
     }
+
+    be->mode = AddressingMode_Value;
 }
 
 void resolve_selector_expr(Resolver *R, SelectorExpr *se) {
@@ -393,16 +414,16 @@ void resolve_decl(Resolver *R, Decl *decl) {
     decl->resolve_state = ResolveState_Completed;
 }
 
-int get_type_arity(Array<Ast*> list) {
+int type_arity(Array<Ast*> list) {
     int count = 0;
     for (Ast *elem : list) {
-        count += get_type_arity(elem->type);
+        count += type_arity(elem->type);
     }
     return count;
 }
 
-bool check_argument_procedure_type_match(Array<Ast*> arguments, TupleType *params) {
-    if (get_type_arity(arguments) != get_type_arity(params)) {
+bool check_argument_procedure_types_equal(Array<Ast*> arguments, TupleType *params) {
+    if (type_arity(arguments) != type_arity(params)) {
         return false;
     }
 
@@ -410,18 +431,18 @@ bool check_argument_procedure_type_match(Array<Ast*> arguments, TupleType *param
         Ast *arg = arguments[arg_idx];
         if (arg->type->kind == Type_Tuple) {
             TupleType *tup = static_cast<TupleType*>(arg->type);
-            int arg_arity = get_type_arity(tup);
+            int arg_arity = type_arity(tup);
             for (int t = 0; t < arg_arity; t++) {
                 Type *param_type = params->types[param_idx];
                 Type *arg_type = tup->types[t];
-                if (!type_match(param_type, arg_type)) {
+                if (!types_equal(param_type, arg_type)) {
                     return false;
                 }
                 param_idx++;
             }
         } else {
             Type *param_type = params->types[param_idx];
-            if (!type_match(param_type, arg->type)) {
+            if (!types_equal(param_type, arg->type)) {
                 return false;
                 break;
             }
@@ -436,7 +457,7 @@ ProcLit *find_procedure_overloaded(Decl *proc_group, Array<Ast*> arguments) {
         ProcLit *proc_lit = proc->proc_lit;
         ProcType *proc_type = static_cast<ProcType*>(proc_lit->proc_type->type);
 
-        if (check_argument_procedure_type_match(arguments, proc_type->params)) {
+        if (check_argument_procedure_types_equal(arguments, proc_type->params)) {
             return proc_lit;
         }
     }
@@ -454,7 +475,7 @@ void resolve_call_expr(Resolver *R, CallExpr *ce) {
         Ident *name = static_cast<Ident*>(ce->operand);
         Decl *decl = name->ref;
 
-        if (decl->kind == Decl_ProcGroup) {
+        if (decl && decl->kind == Decl_ProcGroup) {
             Decl *proc_group = decl;
             ProcLit *callee = find_procedure_overloaded(proc_group, ce->arguments);
 
@@ -468,13 +489,13 @@ void resolve_call_expr(Resolver *R, CallExpr *ce) {
                     report_error(ce, "no procedure with matching argument types found");
                 }
             }
-        } else {
+        } else if (decl) {
             report_error(ce->operand, "'{}' is not a procedure", name->name);
         }
     } else {
         if (ce->operand->type->kind == Type_Proc) {
             ProcType *proc_type = static_cast<ProcType*>(ce->operand->type);
-            if (check_argument_procedure_type_match(ce->arguments, proc_type->params)) {
+            if (check_argument_procedure_types_equal(ce->arguments, proc_type->params)) {
                 ce->type = proc_type->results;
             } else {
                 report_error(ce, "invalid argument types for callee");
@@ -500,12 +521,22 @@ void resolve_block_expr(Resolver *R, BlockExpr *block) {
     R->scope = scope->parent;
 }
 
+
+void resolve_array_expr(Resolver *R, ArrayExpr *array) {
+    Type *elem_type = nullptr;
+    for (Ast *elem : array->elems) {
+        resolve_expr(R, elem);
+    }
+}
+
 void resolve_compound_literal(Resolver *R, CompoundLiteralExpr *comp) {
     resolve_expr(R, comp->operand);
 
     for (Ast *v : comp->initializer_list) {
         resolve_expr(R, v);
     }
+
+    comp->type = comp->operand->type;
 }
 
 void resolve_if_expr(Resolver *R, IfExpr *if_expr) {
@@ -538,7 +569,7 @@ void resolve_param(Resolver *R, Param *param) {
     }
 
     if (param->type_defn && param->default_value) {
-        if (!type_match(param->type_defn->type, param->default_value->type)) {
+        if (!types_equal(param->type_defn->type, param->default_value->type)) {
             report_error(param, "type mismatch for default ");
         }
     }
@@ -725,6 +756,9 @@ void resolve_expr(Resolver *R, Ast *expr) {
         case Ast_BlockExpr:
             resolve_block_expr(R, (BlockExpr *)expr);
             break;
+        case Ast_ArrayExpr:
+            resolve_array_expr(R, (ArrayExpr *)expr);
+            break;
         case Ast_CompoundLiteral:
             resolve_compound_literal(R, (CompoundLiteralExpr *)expr);
             break;
@@ -805,7 +839,7 @@ void resolve_value_decl(Resolver *R, ValueDecl *vd, bool is_global) {
 
         if (vd->type_defn) {
             for (Ast *rhs : vd->values) {
-                if (!type_match(vd->type_defn->type, rhs->type)) {
+                if (!types_equal(vd->type_defn->type, rhs->type)) {
                     report_error(rhs, "right hand side of declaration does not match specified type");
                 }
             }
@@ -864,8 +898,31 @@ void resolve_return_stmt(Resolver *R, ReturnStmt *return_stmt) {
         report_error(return_stmt, "illegal return outside of a procedure");
     }
 
+    ProcLit *proc_lit = static_cast<ProcLit*>(control);
+
+    Array<Type*> types;
     for (Ast *result : return_stmt->results) {
         resolve_expr(R, result);
+        types.append(result->type);
+    }
+
+    Type *ret_type = nullptr;
+    if (types.count > 1) {
+        TupleType *tup = type_new<TupleType>();
+        tup->types = types;
+        ret_type = tup;
+    } else if (types.count == 1) {
+        ret_type = types[0];
+    }
+
+    if (proc_lit) {
+        ProcType *proc_type = static_cast<ProcType*>(proc_lit->proc_type->type);
+
+        if (!types_equal(ret_type, proc_type->results)) {
+            String ret_type_str = string_from_type(ret_type);
+            String result_type_str = string_from_type(proc_type->results);
+            report_error(return_stmt, "mismatched types, expected '{}' return, got '{}'", result_type_str, ret_type_str);
+        }
     }
 }
 

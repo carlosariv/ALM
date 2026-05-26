@@ -38,18 +38,16 @@ struct Type {
     TypeKind kind = Type_Unknown;
     String name;
     int bytes;
+    Type *base = nullptr;
 };
 
 struct PointerType : Type {
-    Type *base;
-
     PointerType() {
         kind = Type_Pointer;
     }
 };
 
 struct ArrayType : Type {
-    Type *base;
     // Ast *size;
     bool is_dynamic = false;
     // CompileTimeValue fixed_size;
@@ -107,8 +105,10 @@ T *type_new() {
     return type;
 }
 
-int get_type_arity(Type *type);
-bool type_match(Type *lhs, Type *rhs);
+int type_arity(Type *type);
+bool types_equal(Type *lhs, Type *rhs);
 
 PointerType *pointer_type_create(Type *t);
 ArrayType *array_type_create(Type *base, Ast *size, bool is_dynamic);
+
+String string_from_type(Type *type);

@@ -1,3 +1,4 @@
+#include <assert.h>
 #include "Types.h"
 
 Type g_builtin_types[] = {
@@ -35,12 +36,102 @@ void *type_alloc(int bytes) {
     return mem;
 }
 
-bool type_match(Type *lhs, Type *rhs) {
+bool is_user_defined_type(Type *type) {
+    switch (type->kind) {
+        case Type_Struct:
+        case Type_Enum:
+        case Type_Union:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool is_pointer_type(Type *type) {
+    return type->kind == Type_Pointer;
+}
+
+bool is_array_type(Type *type) {
+    return type->kind == Type_Array;
+}
+
+bool is_proc_type(Type *type) {
+    return type->kind == Type_Proc;
+}
+
+bool is_tuple_type(Type *type) {
+    return type->kind == Type_Tuple;
+}
+
+//@Note: Type Equality rules
+// User defined types have to point to same distinct type such as structs, unions, enums, and procs
+// Procedure types have to match signature, params and results
+// Builtin types have to be identical
+// Tuple subtypes must match and equal arity. Tuples can equal non-tuples as tuples can be a single value.
+
+bool types_equal(Type *lhs, Type *rhs) {
+    assert(lhs && rhs);
     if (lhs == rhs) return true;
+
+    if (is_user_defined_type(lhs) || is_user_defined_type(rhs)) {
+        return false;
+    }
+
+    if (is_pointer_type(lhs) != is_pointer_type(rhs)) {
+        return false;
+    } else if (is_pointer_type(lhs)) {
+        return types_equal(lhs->base, rhs->base);
+    }
+
+    if (is_array_type(lhs) != is_array_type(rhs)) {
+        return false;
+    } else if (is_array_type(lhs)) {
+        return types_equal(lhs->base, rhs->base);
+    }
+
+    if (is_proc_type(lhs) != is_proc_type(rhs)) {
+        return false;
+    } else if (is_proc_type(lhs)) {
+        ProcType *l = static_cast<ProcType*>(lhs);
+        ProcType *r = static_cast<ProcType*>(rhs);
+
+        return types_equal(l->params, r->params) && types_equal(l->results, r->results);
+    }
+
+    if (is_tuple_type(lhs) || is_tuple_type(rhs)) {
+        int left_arity = type_arity(lhs);
+        int right_arity = type_arity(rhs);
+        if (left_arity != right_arity) return false;
+
+        if (left_arity == 1) {
+            Type *l = lhs, *r = rhs;
+            if (is_tuple_type(lhs)) {
+                l = static_cast<TupleType*>(lhs)->types[0];
+            }
+            if (is_tuple_type(rhs)) {
+                r = static_cast<TupleType*>(rhs)->types[0];
+            }
+
+            return types_equal(l, r);
+        } else {
+            assert(is_tuple_type(lhs) && is_tuple_type(rhs));
+            TupleType *tl = static_cast<TupleType*>(lhs);
+            TupleType *tr = static_cast<TupleType*>(rhs);
+            for (int i = 0; i < tl->types.count; i++) {
+                if (!types_equal(tl->types[i], tr->types[i])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    if (lhs->kind == Type_String && rhs->kind == Type_String) return true;
+
     return false;
 }
 
-int get_type_arity(Type *type) {
+int type_arity(Type *type) {
     switch (type->kind) {
         default:
             return 1;
@@ -50,7 +141,7 @@ int get_type_arity(Type *type) {
             int count = 0;
             TupleType *tup = static_cast<TupleType*>(type);
             for (int i = 0; i < tup->types.count; i++) {
-                count += get_type_arity(tup->types[i]);
+                count += type_arity(tup->types[i]);
             }
             return count;
         }
@@ -65,7 +156,71 @@ PointerType *pointer_type_create(Type *base) {
 
 ArrayType *array_type_create(Type *base, Ast *size, bool is_dynamic) {
     ArrayType *array_type = type_new<ArrayType>();
+    array_type->base = base;
     // array_type->size = size;
     array_type->is_dynamic = is_dynamic;
     return array_type;
+}
+
+String string_from_type(Type *type) {
+    String s;
+    for (;;) {
+        if (type == nullptr) return s;
+
+        switch (type->kind) {
+            default:
+                break;
+            case Type_Unknown:
+                s = string_concat(s, STRZ("<unknown>"));
+                break;
+            case Type_Void:
+            case Type_Bool:
+            case Type_U8:
+            case Type_U16:
+            case Type_U32:
+            case Type_U64:
+            case Type_I8:
+            case Type_I16:
+            case Type_I32:
+            case Type_I64:
+            case Type_F32:
+            case Type_F64:
+            case Type_String:
+                s = string_concat(s, type->name);
+                break;
+
+            case Type_Pointer:
+                s = string_concat(s, STRZ("*"));
+                break;
+            case Type_Array:
+                s = string_concat(s, STRZ("[]"));
+                break;
+            case Type_Any:
+                s = string_concat(s, STRZ("any"));
+                break;
+            case Type_Enum:
+                s = string_concat(s, STRZ("enum"));
+                break;
+            case Type_Struct:
+                s = string_concat(s, STRZ("struct"));
+                break;
+            case Type_Union:
+                s = string_concat(s, STRZ("union"));
+                break;
+            case Type_Proc:
+                s = string_concat(s, STRZ("proc"));
+                break;
+            case Type_Tuple: {
+                TupleType *tup = static_cast<TupleType*>(type);
+                s = string_concat(s, STRZ("("));
+                for (int i = 0; i < tup->types.count; i++) {
+                    s = string_concat(s, string_from_type(tup->types[i]));
+                    if (i < tup->types.count - 1) s = string_concat(s, STRZ(" "));
+                }
+                s = string_concat(s, STRZ(")"));
+                break;
+            }
+        }
+        type = type->base;
+    }
 }
