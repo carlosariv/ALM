@@ -60,7 +60,7 @@ void ast_print(Ast *node) {
                 ast_print(member);
             }
             tab_end();
-            ast_out(")");
+            ast_out(")\n");
             break;
         }
 
@@ -238,7 +238,7 @@ void ast_print(Ast *node) {
         case Ast_ParenExpr: {
             ParenExpr *p = static_cast<ParenExpr*>(node);
             ast_out("(");
-            ast_print(p->expr);
+            ast_print(p->operand);
             ast_out(")");
             break;
         }
@@ -325,7 +325,7 @@ void ast_print(Ast *node) {
         case Ast_StarExpr: {
             StarExpr *star = static_cast<StarExpr*>(node);
             ast_out("(* ");
-            ast_print(star->elem);
+            ast_print(star->operand);
             ast_out(")");
             break;
         }
@@ -404,31 +404,25 @@ void ast_print(Ast *node) {
             break;
         }
 
-        case Ast_Do: {
-            DoStmt *d = static_cast<DoStmt*>(node);
-            ast_out("(do\n");
-            ast_print(d->block);
-            ast_out(") (");
-            ast_print(d->condition);
-            ast_out(")\n");
-            break;
-        }
-
-        case Ast_While: {
-            WhileStmt *d = static_cast<WhileStmt*>(node);
-            ast_out("(while\n");
-            ast_out("(");
-            ast_print(d->condition);
-            ast_out(")\n");
-            ast_print(d->block);
-            break;
-        }
-
         case Ast_For: {
             ForStmt *f = static_cast<ForStmt*>(node);
             ast_out("(for\n");
             ast_out("(");
-            ast_print(f->condition);
+
+            if (f->init) {
+                ast_print(f->init);
+                ast_out(" ");
+            }
+
+            if (f->condition) {
+                ast_print(f->condition);
+                ast_out(" ");
+            }
+
+            if (f->post) {
+                ast_print(f->post);
+            }
+
             ast_out(")\n");
             ast_print(f->block);
             break;
@@ -437,9 +431,9 @@ void ast_print(Ast *node) {
         case Ast_Case: {
             CaseExpr *c = static_cast<CaseExpr*>(node);
             ast_out("(case ");
-            if (c->expr) {
+            if (c->operand) {
                 ast_out("(");
-                ast_print(c->expr);
+                ast_print(c->operand);
                 ast_out(")");
             }
             ast_out("\n(");

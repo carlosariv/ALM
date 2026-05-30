@@ -20,9 +20,22 @@ enum DeclKind {
     Decl_Constant,
 };
 
+enum DeclFlags {
+    DeclFlag_Nil = 0,
+    DeclFlag_ConstantType       = (1<<0),
+    DeclFlag_ConstantProcedure  = (1<<1),
+};
+
+inline void operator|=(DeclFlags &flags, const DeclFlags other) {
+    int f = (int)flags | (int)other;
+    flags = (DeclFlags)f;
+}
+
 struct Decl {
     DeclKind kind = Decl_Nil;
     ResolveState resolve_state = ResolveState_UnInit;
+    DeclFlags flags = DeclFlag_Nil;
+
     Atom *name = nullptr;
     Scope *scope = nullptr;
 
@@ -55,5 +68,5 @@ struct Resolver {
 
 void resolve_program(Resolver *R, Parser *P);
 void resolve_file(Resolver *R, AstFile *file);
-void resolve_expr(Resolver *R, Ast *expr);
+void resolve_expr_base(Resolver *R, Ast *expr);
 

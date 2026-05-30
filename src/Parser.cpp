@@ -261,13 +261,13 @@ CaseExpr *parse_case_clause(Parser *P) {
         report_parser_error(P, "did not expect case in middle of block");
     }
 
-    Ast *expr = parse_expr(P);
+    Ast *operand = parse_expr(P);
 
     expect_token(P, Token_Colon);
 
     CaseExpr *c = ast_new<CaseExpr>();
-    c->expr = expr;
-    c->is_default = expr == nullptr;
+    c->operand = operand;
+    c->is_default = operand == nullptr;
     c->token = token;
     return c;
 }
@@ -336,6 +336,7 @@ Ast *parse_if_or_case_expr(Parser *P) {
         Ast *then_expr = parse_expr(P);
 
         IfExpr *if_expr = ast_new<IfExpr>();
+        if_expr->token = token;
         if_expr->condition = condition;
         if_expr->then_expr = then_expr;
         if_expr->prev_if = nullptr;
@@ -409,11 +410,11 @@ BlockExpr *parse_block_expr(Parser *P) {
 
 StarExpr *parse_star_expr(Parser *P) {
     Token token = expect_token(P, Token_Star);
-    Ast *elem = parse_type(P);
-    StarExpr *expr = ast_new<StarExpr>();
-    expr->elem = elem;
-    expr->token = token;
-    return expr;
+    Ast *operand = parse_type(P);
+    StarExpr *star = ast_new<StarExpr>();
+    star->operand = operand;
+    star->token = token;
+    return star;
 }
 
 Ast *parse_type(Parser *P) {
@@ -507,11 +508,11 @@ ProcLit *ast_proc_lit(ProcTypeDefn *type, BlockExpr *body) {
 
 ParenExpr *parse_paren_expr(Parser *P) {
     Token open = expect_token(P, Token_OpenParen);
-    Ast *elem = parse_expr(P);
+    Ast *operand = parse_expr(P);
     Token close = expect_token(P, Token_CloseParen);
 
     ParenExpr *paren = ast_new<ParenExpr>();
-    paren->expr = elem;
+    paren->operand = operand;
     paren->open = open;
     paren->close = close;
     return paren;
@@ -850,6 +851,10 @@ bool is_assign_token(TokenKind token) {
     return token > Token_Assign_Begin && token < Token_Assign_End;
 }
 
+Token expect_semi(Parser *P) {
+    return expect_token(P, Token_Semicolon);
+}
+
 Ast *parse_simple_stmt(Parser *P) {
     Array<Ast*> lhs = parse_expr_list(P);
 
@@ -890,7 +895,9 @@ Ast *parse_simple_stmt(Parser *P) {
         vd->is_mutable = mut;
 
         if (mut) {
-            expect_token(P, Token_Semicolon);
+            if (P->needs_semi) {
+                expect_semi(P);
+            }
         }
         return vd;
     } else if (is_assign_token(peek_token(P))) {
@@ -901,24 +908,95 @@ Ast *parse_simple_stmt(Parser *P) {
         assign->rhs = rhs;
         assign->token = token;
         assign->op = get_assign_operator(token.kind);
-        expect_token(P, Token_Semicolon);
+        if (P->needs_semi) {
+            expect_semi(P);
+        }
         return assign;
     } else {
         Ast *expr = lhs[0];
-        // NOTE: Trailing block-ish expression
         if (is_token(P, Token_Case) || is_token(P, Token_CloseBrace)) {
+            // NOTE: Trailing block-ish expression
             P->block->trailing = expr;
-            return expr;
+            return nullptr;
         } else {
+            bool semi = false;
             if (expr->kind != Ast_IfExpr) {
-                expect_token(P, Token_Semicolon);
+                if (P->needs_semi) {
+                    semi = true;
+                }
             }
 
-            ExprStmt *stmt = ast_new<ExprStmt>();
-            stmt->expr = expr;
-            return stmt;
+            if (semi) {
+                expect_semi(P);
+                ExprStmt *stmt = ast_new<ExprStmt>();
+                stmt->expr = expr;
+                return stmt;
+            } else {
+                return expr;
+            }
         }
     }
+}
+
+ExprStmt *ast_expr_stmt(Ast *expr) {
+    ExprStmt *stmt = ast_new<ExprStmt>();
+    stmt->expr = expr;
+    return stmt;
+}
+
+ForStmt *parse_for_stmt(Parser *P) {
+    Token token = expect_token(P, Token_For);
+
+    int prev_expr_level = P->expr_level;
+    P->expr_level = -1;
+
+    int prev_needs_semi = P->needs_semi;
+    P->needs_semi = true;
+
+    Ast *init = nullptr;
+    Ast *condition = nullptr;
+    Ast *post = nullptr;
+    bool is_multi = false;
+
+    Ast *first = parse_simple_stmt(P);
+
+    if (is_ast_expr(first)) {
+        if (match_token(P, Token_Semicolon)) {
+            first = ast_expr_stmt(first);
+            is_multi = true;
+        }
+    } else {
+        is_multi = true;
+    }
+
+    if (is_multi) {
+        init = first;
+
+        condition = parse_expr(P);
+
+        expect_semi(P);
+
+        post = parse_simple_stmt(P);
+        if (post && is_ast_expr(post)) {
+            post = ast_expr_stmt(post);
+        }
+    } else {
+        condition = first;
+    }
+
+    P->needs_semi = prev_needs_semi;
+    P->expr_level = prev_expr_level;
+
+    BlockExpr *block = parse_block_expr(P);
+
+    ForStmt *for_stmt = ast_new<ForStmt>();
+    for_stmt->condition = condition;
+    for_stmt->init = init;
+    for_stmt->post = post;
+    for_stmt->is_multi = is_multi;
+    for_stmt->block = block;
+    for_stmt->token = token;
+    return for_stmt;
 }
 
 Ast *parse_stmt(Parser *P) {
@@ -930,76 +1008,23 @@ Ast *parse_stmt(Parser *P) {
             break;
 
         case Token_Semicolon: {
-            Token token = expect_token(P, Token_Semicolon);
+            Token token = expect_semi(P);
             EmptyStmt *empty = ast_new<EmptyStmt>();
             empty->token = token;
             stmt = empty;
             break;
         }
 
-        case Token_While: {
-            Token token = expect_token(P, Token_While);
-
-            WhileStmt *while_stmt = ast_new<WhileStmt>();
-
-            int prev_expr_level = P->expr_level;
-            P->expr_level = -1;
-            Ast *condition = parse_expr(P);
-
-            P->expr_level = prev_expr_level;
-
-
-            while_stmt->condition = condition;
-
-            BlockExpr *block = parse_block_expr(P);
-            while_stmt->block = block;
-
-            stmt = while_stmt;
-            break;
-        }
-
-        case Token_Do: {
-            Token token = expect_token(P, Token_Do);
-
-            DoStmt *do_stmt = ast_new<DoStmt>();
-
-            BlockExpr *block = parse_block_expr(P);
-
-            expect_token(P, Token_While);
-            Ast *condition = parse_expr(P);
-
-            do_stmt->condition = condition;
-            do_stmt->block = block;
-            stmt = do_stmt;
-            break;
-        }
-
         case Token_For: {
-            Token token = expect_token(P, Token_For);
-
-            ForStmt *for_stmt = ast_new<ForStmt>();
-
-            int prev_expr_level = P->expr_level;
-            P->expr_level = -1;
-            Ast *condition = parse_expr(P);
-
-            P->expr_level = prev_expr_level;
-
-            for_stmt->condition = condition;
-
-            BlockExpr *block = parse_block_expr(P);
-
-            for_stmt->block = block;
-            for_stmt->token = token;
-            stmt = for_stmt;
+            stmt = parse_for_stmt(P);
             break;
         }
 
         case Token_Break: {
             Token token = expect_token(P, Token_Break);
             BreakStmt *break_stmt = ast_new<BreakStmt>();
-            Ast *expr = parse_expr(P);
-            break_stmt->expr = expr;
+            Ast *operand = parse_expr(P);
+            break_stmt->operand = operand;
             break_stmt->token = token;
             stmt = break_stmt;
             break;

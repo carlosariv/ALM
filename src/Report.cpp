@@ -42,14 +42,6 @@ Token ast_start_token(Ast *node) {
             AST_X(cs, CaseExpr);
             return cs->token;
         }
-        case Ast_Do: {
-            AST_X(ds, DoStmt);
-            return ds->token;
-        }
-        case Ast_While: {
-            AST_X(ws, WhileStmt);
-            return ws->token;
-        }
         case Ast_For: {
             AST_X(fs, ForStmt);
             return fs->token;
@@ -100,6 +92,9 @@ Token ast_start_token(Ast *node) {
         }
         case Ast_IfExpr: {
             AST_X(ie, IfExpr);
+            if (ie->prev_if) {
+                return ast_start_token(ie->prev_if);
+            }
             return ie->token;
         }
         case Ast_IfCaseExpr: {
@@ -213,18 +208,10 @@ Token ast_end_token(Ast *node) {
             if (!cs->statements.is_empty()) {
                 return ast_end_token(cs->statements[cs->statements.count-1]);
             }
-            if (cs->expr) {
-                return ast_end_token(cs->expr);
+            if (cs->operand) {
+                return ast_end_token(cs->operand);
             }
             return cs->token;
-        }
-        case Ast_Do: {
-            AST_X(ds, DoStmt);
-            return ast_end_token(ds->block);
-        }
-        case Ast_While: {
-            AST_X(ws, WhileStmt);
-            return ast_end_token(ws->block);
         }
         case Ast_For: {
             AST_X(fs, ForStmt);
@@ -273,6 +260,9 @@ Token ast_end_token(Ast *node) {
         }
         case Ast_IfExpr: {
             AST_X(ie, IfExpr);
+            if (ie->else_if) {
+                return ast_end_token(ie->else_if);
+            }
             return ast_end_token(ie->then_expr);
         }
         case Ast_IfCaseExpr: {
@@ -281,7 +271,7 @@ Token ast_end_token(Ast *node) {
         }
         case Ast_StarExpr: {
             AST_X(se, StarExpr);
-            return ast_end_token(se->elem);
+            return ast_end_token(se->operand);
         }
         case Ast_DerefExpr: {
             AST_X(de, DerefExpr);

@@ -1,3 +1,4 @@
+#include <print>
 #include <assert.h>
 #include "Types.h"
 
@@ -16,6 +17,7 @@ Type g_builtin_types[] = {
     {Type_I64,     STRZ("i64"),       8},
     {Type_F32,     STRZ("f32"),       4},
     {Type_F64,     STRZ("f64"),       8},
+    {Type_String,  STRZ("string"),   -1},
 };
 
 Type *t_void = &g_builtin_types[Type_Void];
@@ -36,6 +38,16 @@ Type *t_string = &g_builtin_types[Type_String];
 void *type_alloc(int bytes) {
     void *mem = malloc(bytes);
     return mem;
+}
+
+Type *deref_type(Type *type) {
+    switch (type->kind) {
+        case Type_Pointer:
+        case Type_Array:
+            return type->base;
+        default:
+            return nullptr;
+    }
 }
 
 bool types_castable(Type *dst, Type *src) {
@@ -93,7 +105,7 @@ bool types_assignable(Type *dst, Type *src) {
     if (is_integer_type(dst) && is_integer_type(src)) {
         if (is_signed_type(dst) == is_signed_type(src)) {
             return dst->bytes >= src->bytes;
-        } else { 
+        } else {
             return false;
         }
     }
@@ -184,6 +196,7 @@ String string_from_type(Type *type) {
 
         switch (type->kind) {
             default:
+                assert(0);
                 break;
             case Type_Unknown:
                 s = string_concat(s, STRZ("<unknown>"));
@@ -216,9 +229,21 @@ String string_from_type(Type *type) {
             case Type_Enum:
                 s = string_concat(s, STRZ("enum"));
                 break;
-            case Type_Struct:
-                s = string_concat(s, STRZ("struct"));
+            case Type_Struct: {
+                StructType *st = static_cast<StructType*>(type);
+                if (st->name.len > 0) {
+                    s = string_concat(s, st->name);
+                } else {
+                    s = string_concat(s, STRZ("struct{"));
+                    for (Type *t : st->members) {
+                        String ms = string_from_type(t);
+                        s = string_concat(s, ms);
+                        s = string_concat(s, STRZ(","));
+                    }
+                    s = string_concat(s, STRZ("}"));
+                }
                 break;
+            }
             case Type_Union:
                 s = string_concat(s, STRZ("union"));
                 break;

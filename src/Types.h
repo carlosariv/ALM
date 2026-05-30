@@ -22,16 +22,16 @@ enum TypeKind {
     Type_I64,
     Type_F32,
     Type_F64,
-
     Type_String,
+
     Type_Pointer,
     Type_Array,
-    Type_Any,
     Type_Enum,
     Type_Struct,
     Type_Union,
     Type_Proc,
     Type_Tuple,
+    Type_Any,
 
     Type_COUNT
 };
@@ -136,6 +136,8 @@ PointerType *pointer_type_create(Type *t);
 ArrayType *array_type_create(Type *base, Ast *size, bool is_dynamic);
 
 String string_from_type(Type *type);
+
+Type *deref_type(Type *type);
 
 inline bool is_user_defined_type(Type *type) {
     switch (type->kind) {

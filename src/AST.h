@@ -29,8 +29,6 @@ enum AstKind {
     Ast_Fallthrough,
     Ast_Return,
     Ast_Case,
-    Ast_Do,
-    Ast_While,
     Ast_For,
 
     Ast_Ident,
@@ -86,6 +84,7 @@ enum AddressingMode {
     AddressingMode_Value,
     AddressingMode_Constant,
     AddressingMode_Procedure,
+    AddressingMode_NoValue,
 };
 
 struct Ast {
@@ -260,7 +259,7 @@ struct IfCaseExpr : Ast {
 };
 
 struct ParenExpr : Ast {
-    Ast *expr;
+    Ast *operand;
 
     Token open;
     Token close;
@@ -283,7 +282,7 @@ struct BlockExpr : Ast {
 };
 
 struct StarExpr : Ast {
-    Ast *elem;
+    Ast *operand;
     Token token;
 
     StarExpr() {
@@ -325,7 +324,7 @@ struct ExprStmt : Ast {
 };
 
 struct CaseExpr : Ast {
-    Ast *expr;
+    Ast *operand;
     bool is_default;
     Array<Ast*> statements;
     CaseExpr *prev_clause;
@@ -337,29 +336,12 @@ struct CaseExpr : Ast {
     }
 };
 
-struct WhileStmt : Ast {
-    Ast *condition;
-    BlockExpr *block;
-    Token token;
-
-    WhileStmt() {
-        kind = Ast_While;
-    }
-};
-
-struct DoStmt : Ast {
-    Ast *condition;
-    BlockExpr *block;
-    Token token;
-
-    DoStmt() {
-        kind = Ast_Do;
-    }
-};
-
 struct ForStmt : Ast {
     Ast *condition;
+    Ast *init;
+    Ast *post;
     BlockExpr *block;
+    bool is_multi;
     Token token;
 
     ForStmt() {
@@ -376,7 +358,7 @@ struct ContinueStmt : Ast {
 };
 
 struct BreakStmt : Ast {
-    Ast *expr;
+    Ast *operand;
     Token token;
 
     BreakStmt() {
@@ -496,3 +478,25 @@ void ast_print(Ast *node);
 String string_from_token(TokenKind token);
 String string_from_operator(Operator op);
 
+inline bool is_ast_expr(Ast *node) {
+    switch (node->kind) {
+        case Ast_Ident:
+        case Ast_LiteralExpr:
+        case Ast_UnaryExpr:
+        case Ast_BinaryExpr:
+        case Ast_SelectorExpr:
+        case Ast_CallExpr:
+        case Ast_ParenExpr:
+        case Ast_BlockExpr:
+        case Ast_ArrayExpr:
+        case Ast_CompoundLiteral:
+        case Ast_IfExpr:
+        case Ast_IfCaseExpr:
+        case Ast_StarExpr:
+        case Ast_DerefExpr:
+        case Ast_CastExpr:
+            return true;
+        default:
+            return false;
+    }
+}
