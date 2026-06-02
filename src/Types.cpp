@@ -98,7 +98,7 @@ bool types_assignable(Type *dst, Type *src) {
     if (is_pointer_type(dst) != is_pointer_type(src)) {
         return false;
     } else if (is_pointer_type(dst)) {
-        return types_assignable(dst->base, src->base);
+        return types_assignable(deref_type(dst), deref_type(src));
     }
 
     //@Note: Type narrowing
@@ -113,7 +113,7 @@ bool types_assignable(Type *dst, Type *src) {
     if (is_array_type(dst) != is_array_type(src)) {
         return false;
     } else if (is_array_type(dst)) {
-        return types_assignable(dst->base, src->base);
+        return types_assignable(deref_type(dst), deref_type(src));
     }
 
     if (is_proc_type(dst) != is_proc_type(src)) {
@@ -261,6 +261,6 @@ String string_from_type(Type *type) {
                 break;
             }
         }
-        type = type->base;
+        type = deref_type(type);
     }
 }

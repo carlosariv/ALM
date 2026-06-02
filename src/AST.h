@@ -11,8 +11,20 @@ struct BlockExpr;
 
 enum AstFlags {
     AstFlag_Nil = 0,
-    AstFlag_Loop = (1<<0),
+    AstFlag_ControlFlow = (1<<0),
+    AstFlag_Loopy       = (1<<1),
+    AstFlag_Casey       = (1<<2),
+    AstFlag_Procedure   = (1<<3),
 };
+
+inline AstFlags operator|(const AstFlags l, const AstFlags r) {
+    return (AstFlags)((int)l | (int)r);
+}
+
+inline AstFlags &operator|=(AstFlags &left, const AstFlags o) {
+    left = left | o;
+    return left;
+}
 
 enum AstKind {
     Ast_Unknown,
@@ -31,10 +43,12 @@ enum AstKind {
     Ast_Case,
     Ast_For,
 
+    Ast__ExprBegin,
     Ast_Ident,
     Ast_LiteralExpr,
     Ast_UnaryExpr,
     Ast_BinaryExpr,
+    Ast_LazyBooleanExpr,
     Ast_SelectorExpr,
     Ast_CallExpr,
     Ast_ParenExpr,
@@ -46,6 +60,7 @@ enum AstKind {
     Ast_StarExpr,
     Ast_DerefExpr,
     Ast_CastExpr,
+    Ast__ExprEnd,
 
     Ast_Param,
     Ast_ProcType,
@@ -89,6 +104,7 @@ enum AddressingMode {
 
 struct Ast {
     AstKind kind = Ast_Error;
+    AstFlags flags = AstFlag_Nil;
     AddressingMode mode = AddressingMode_Invalid;
     Type *type = nullptr;
     ComptimeValue ct_value;
@@ -192,6 +208,17 @@ struct BinaryExpr : Ast {
     }
 };
 
+struct LazyBooleanExpr : Ast {
+    Operator op;
+    Ast *lhs;
+    Ast *rhs;
+    Token token;
+
+    LazyBooleanExpr() {
+        kind = Ast_LazyBooleanExpr;
+    }
+};
+
 //@Note: Can either be a array literal or a subscript
 // e.g u8[1, 2, 3] or arr[0]
 struct ArrayExpr : Ast {
@@ -246,6 +273,7 @@ struct IfExpr : Ast {
 
     IfExpr() {
         kind = Ast_IfExpr;
+        flags |= AstFlag_ControlFlow;
     }
 };
 
@@ -253,14 +281,15 @@ struct IfCaseExpr : Ast {
     Ast *condition;
     BlockExpr *block;
     Token token;
+
     IfCaseExpr() {
         kind = Ast_IfCaseExpr;
+        flags |= AstFlag_ControlFlow | AstFlag_Casey;
     }
 };
 
 struct ParenExpr : Ast {
     Ast *operand;
-
     Token open;
     Token close;
 
@@ -341,11 +370,11 @@ struct ForStmt : Ast {
     Ast *init;
     Ast *post;
     BlockExpr *block;
-    bool is_multi;
     Token token;
 
     ForStmt() {
         kind = Ast_For;
+        flags = AstFlag_ControlFlow | AstFlag_Loopy;
     }
 };
 
@@ -462,6 +491,7 @@ struct ProcLit : Ast {
 
     ProcLit() {
         kind = Ast_ProcLit;
+        flags |= AstFlag_Procedure;
     }
 };
 
@@ -479,24 +509,5 @@ String string_from_token(TokenKind token);
 String string_from_operator(Operator op);
 
 inline bool is_ast_expr(Ast *node) {
-    switch (node->kind) {
-        case Ast_Ident:
-        case Ast_LiteralExpr:
-        case Ast_UnaryExpr:
-        case Ast_BinaryExpr:
-        case Ast_SelectorExpr:
-        case Ast_CallExpr:
-        case Ast_ParenExpr:
-        case Ast_BlockExpr:
-        case Ast_ArrayExpr:
-        case Ast_CompoundLiteral:
-        case Ast_IfExpr:
-        case Ast_IfCaseExpr:
-        case Ast_StarExpr:
-        case Ast_DerefExpr:
-        case Ast_CastExpr:
-            return true;
-        default:
-            return false;
-    }
+    return node->kind > Ast__ExprBegin && node->kind < Ast__ExprEnd;
 }

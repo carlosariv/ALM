@@ -218,26 +218,6 @@ inline bool is_numeric_type(Type *type) {
     }
 }
 
-inline bool is_arithmetic_type(Type *type) {
-    switch (type->kind) {
-        case Type_Bool:
-        case Type_U8:
-        case Type_U16:
-        case Type_U32:
-        case Type_U64:
-        case Type_I8:
-        case Type_I16:
-        case Type_I32:
-        case Type_I64:
-        case Type_F32:
-        case Type_F64:
-        case Type_Enum:
-            return true;
-        default:
-            return false;
-    }
-}
-
 inline bool is_signed_type(Type *type) {
     switch (type->kind) {
         case Type_I8:
@@ -262,5 +242,27 @@ inline Type *get_signed_type(Type *type) {
             return t_i32;
         case Type_U64:
             return t_i64;
+    }
+}
+
+inline bool is_bool_like_type(Type *t) {
+    switch (t->kind) {
+        case Type_Bool:
+        case Type_U8:
+        case Type_U16:
+        case Type_U32:
+        case Type_U64:
+        case Type_I8:
+        case Type_I16:
+        case Type_I32:
+        case Type_I64:
+        case Type_F32:
+        case Type_F64:
+        case Type_Pointer:
+        case Type_Enum:
+        case Type_Proc:
+            return true;
+        default:
+            return false;
     }
 }

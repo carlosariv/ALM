@@ -638,7 +638,10 @@ Ast *parse_operand(Parser *P) {
         }
 
         case Token_OpenBrace:
-            return parse_block_expr(P);
+            if (P->expr_level >= 0) {
+                return parse_block_expr(P);
+            }
+            return nullptr;
 
         case Token_If:
             return parse_if_or_case_expr(P);
@@ -795,7 +798,7 @@ Ast *parse_unary_expr(Parser *P) {
     }
 }
 
-BinaryExpr *ast_binary_expr(Token token, Operator op, Ast *lhs, Ast *rhs) {
+Ast *ast_binary_expr(Token token, Operator op, Ast *lhs, Ast *rhs) {
     BinaryExpr *expr = ast_new<BinaryExpr>();
     expr->token = token;
     expr->op = op;
@@ -877,12 +880,9 @@ Ast *parse_simple_stmt(Parser *P) {
         type_defn = parse_type(P);
 
         if (match_token(P, Token_Colon)) {
-            // compile-time constant
             rhs = parse_expr_list(P);
         } else {
-            // non compile-time constant
             mut = true;
-
             if (match_token(P, Token_Assign)) {
                 rhs = parse_expr_list(P);
             }
@@ -951,37 +951,45 @@ ForStmt *parse_for_stmt(Parser *P) {
     P->expr_level = -1;
 
     int prev_needs_semi = P->needs_semi;
-    P->needs_semi = true;
+    P->needs_semi = false;
 
     Ast *init = nullptr;
     Ast *condition = nullptr;
     Ast *post = nullptr;
-    bool is_multi = false;
-
     Ast *first = parse_simple_stmt(P);
 
-    if (is_ast_expr(first)) {
-        if (match_token(P, Token_Semicolon)) {
-            first = ast_expr_stmt(first);
+    if (first) {
+        bool is_multi = false;
+        if (is_ast_expr(first)) {
+            if (match_token(P, Token_Semicolon)) {
+                first = ast_expr_stmt(first);
+                is_multi = true;
+            }
+        } else {
             is_multi = true;
         }
-    } else {
-        is_multi = true;
-    }
 
-    if (is_multi) {
-        init = first;
+        if (is_multi) {
+            init = first;
 
-        condition = parse_expr(P);
+            expect_semi(P);
 
-        expect_semi(P);
+            condition = parse_expr(P);
 
-        post = parse_simple_stmt(P);
-        if (post && is_ast_expr(post)) {
-            post = ast_expr_stmt(post);
+            expect_semi(P);
+
+            post = parse_simple_stmt(P);
+            if (post) {
+                if (post->kind == Ast_ValueDecl) {
+                    report_error(post, "illegal declaration, expected expression or assignment");
+                }
+                if (is_ast_expr(post)) {
+                    post = ast_expr_stmt(post);
+                }
+            }
+        } else {
+            condition = first;
         }
-    } else {
-        condition = first;
     }
 
     P->needs_semi = prev_needs_semi;
@@ -993,7 +1001,6 @@ ForStmt *parse_for_stmt(Parser *P) {
     for_stmt->condition = condition;
     for_stmt->init = init;
     for_stmt->post = post;
-    for_stmt->is_multi = is_multi;
     for_stmt->block = block;
     for_stmt->token = token;
     return for_stmt;

@@ -1,3 +1,5 @@
+#include <assert.h>
+
 #include "Report.h"
 
 #define AST_X(Name,Type) Type *Name = static_cast<Type*>(node);
@@ -62,6 +64,10 @@ Token ast_start_token(Ast *node) {
         case Ast_BinaryExpr: {
             AST_X(be, BinaryExpr);
             return ast_start_token(be->lhs);
+        }
+        case Ast_LazyBooleanExpr: {
+            AST_X(lb, LazyBooleanExpr);
+            return ast_start_token(lb->lhs);
         }
         case Ast_SelectorExpr: {
             AST_X(se, SelectorExpr);
@@ -154,7 +160,12 @@ Token ast_start_token(Ast *node) {
         case Ast_Unknown:
         case Ast_Error:
         case Ast_File:
+            break;
+
+        case Ast__ExprBegin:
+        case Ast__ExprEnd:
         case Ast_COUNT:
+            assert(0);
             break;
     }
     return {};
@@ -233,6 +244,10 @@ Token ast_end_token(Ast *node) {
         case Ast_BinaryExpr: {
             AST_X(be, BinaryExpr);
             return ast_end_token(be->rhs);
+        }
+        case Ast_LazyBooleanExpr: {
+            AST_X(lb, LazyBooleanExpr);
+            return ast_end_token(lb->rhs);
         }
         case Ast_SelectorExpr: {
             AST_X(se, SelectorExpr);
@@ -331,7 +346,12 @@ Token ast_end_token(Ast *node) {
         case Ast_Unknown:
         case Ast_Error:
         case Ast_File:
+            break;
+
+        case Ast__ExprBegin:
+        case Ast__ExprEnd:
         case Ast_COUNT:
+            assert(0);
             break;
     }
     return {};

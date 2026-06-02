@@ -81,6 +81,7 @@ X(Token_Then, "then") \
 X(Token_Case, "case") \
 X(Token_Of, "of") \
 X(Token_Return, "return") \
+X(Token_Import, "import") \
 X(Token_KeywordEnd, "KeywordEnd") \
 
 

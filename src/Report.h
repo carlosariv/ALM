@@ -6,6 +6,7 @@
 #include "Token.h"
 #include "Ast.h"
 #include "Parser.h"
+#include "Types.h"
 
 Token ast_start_token(Ast *node);
 Token ast_end_token(Ast *node);

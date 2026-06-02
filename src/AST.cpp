@@ -49,6 +49,8 @@ void ast_print(Ast *node) {
         case Ast_Unknown:
         case Ast_Error:
         case Ast_EmptyStmt:
+        case Ast__ExprBegin:
+        case Ast__ExprEnd:
         case Ast_COUNT:
             break;
 
@@ -204,6 +206,16 @@ void ast_print(Ast *node) {
             ast_print(binary->lhs);
             ast_out(" ");
             ast_print(binary->rhs);
+            ast_out(")");
+            break;
+        }
+
+        case Ast_LazyBooleanExpr: {
+            LazyBooleanExpr *lazy = static_cast<LazyBooleanExpr*>(node);
+            ast_out("({} ", string_from_operator(lazy->op));
+            ast_print(lazy->lhs);
+            ast_out(" ");
+            ast_print(lazy->rhs);
             ast_out(")");
             break;
         }

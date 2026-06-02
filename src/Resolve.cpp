@@ -44,6 +44,11 @@ bool is_ast_type(Ast *node) {
     }
 }
 
+void ast_poison(Ast *node) {
+    node->type = t_invalid;
+    node->mode = AddressingMode_Invalid;
+}
+
 ComptimeValue ct_value_int(int int_val) {
     ComptimeValue val = {};
     val.kind = ComptimeValue_Integer;
@@ -130,34 +135,14 @@ Decl *decl_lookup(Scope *scope, Atom *name) {
     return nullptr;
 }
 
-Ast *find_control_target(Scope *scope, AstKind stmt) {
-    while (scope) {
+Ast *find_control_target(Scope *s, AstFlags flags) {
+    for (Scope *scope = s; scope; scope = scope->parent) {
         Ast *node = scope->node;
         if (node == nullptr) break;
 
-        bool valid = false;
-        switch (stmt) {
-            default:
-                break;
-            case Ast_Fallthrough:
-                valid = node->kind == Ast_IfCaseExpr;
-                break;
-            case Ast_Continue:
-                valid = node->kind == Ast_For;
-                break;
-            case Ast_Break:
-                valid = node->kind == Ast_IfCaseExpr || node->kind == Ast_For;
-                break;
-            case Ast_Return:
-                valid = node->kind == Ast_ProcLit;
-                break;
-        }
-
-        if (valid) {
+        if (flags & node->flags) {
             return node;
         }
-
-        scope = scope->parent;
     }
     return nullptr;
 }
@@ -225,7 +210,7 @@ void resolve_name(Resolver *R, Ident *name) {
         }
     } else {
         report_error(name, "could not find identifier '{}'", name->name);
-        name->type = t_invalid;
+        ast_poison(name);
     }
 }
 
@@ -264,56 +249,271 @@ void resolve_literal_expr(Resolver *R, LiteralExpr *le) {
 }
 
 void resolve_unary_expr(Resolver *R, UnaryExpr *ue) {
-    resolve_expr(R, ue->operand);
-
     Ast *operand = ue->operand;
+
+    resolve_expr(R, operand);
+
+    if (operand->mode == AddressingMode_Invalid) {
+        ast_poison(ue);
+        return;
+    }
 
     switch (ue->op) {
         default:
             break;
         case Operator_UnaryPlus:
-            if (is_arithmetic_type(operand->type)) {
+            if (is_numeric_type(operand->type)) {
                 ue->type = operand->type;
                 ue->mode = AddressingMode_Value;
             } else {
                 report_error(ue, "bad operator '+' on a non-arithmetic type");
-                ue->type = t_invalid;
+                ast_poison(ue);
             }
             break;
         case Operator_Negate:
-            if (is_arithmetic_type(operand->type)) {
+            if (is_numeric_type(operand->type)) {
                 ue->type = get_signed_type(operand->type);
                 ue->mode = AddressingMode_Value;
             } else {
                 report_error(ue, "bad operator '-' on a non-arithmetic type");
-                ue->type = t_invalid;
+                ast_poison(ue);
             }
             break;
         case Operator_AddressOf:
             if (operand->mode == AddressingMode_Variable) {
                 ue->type = pointer_type_create(ue->type);
-                ue->mode = AddressingMode_Variable;
+                ue->mode = AddressingMode_Value;
             } else {
                 report_error(ue, "cannot take address of a non r-value expression");
-                ue->type = t_invalid;
+                ast_poison(ue);
             }
             break;
     }
+}
+
+void expr_set_type(Ast *expr, Type *type) {
+    expr->type = type;
+    expr->mode = AddressingMode_Value;
 }
 
 void resolve_binary_expr(Resolver *R, BinaryExpr *be) {
     resolve_expr(R, be->lhs);
     resolve_expr(R, be->rhs);
 
-    //@Todo: Check valid types per binary operator
-    if (!types_assignable(be->lhs->type, be->rhs->type)) {
-        String lhs_type_string = string_from_type(be->lhs->type);
-        String rhs_type_string = string_from_type(be->rhs->type);
-        report_error(be, "types of operands mismatch, '{}', '{}'", lhs_type_string, rhs_type_string);
+    if (be->lhs->mode == AddressingMode_Invalid || be->rhs->mode == AddressingMode_Invalid) {
+        ast_poison(be);
+        return;
     }
 
-    be->mode = AddressingMode_Value;
-    be->type = be->lhs->type;
+    Type *a = be->lhs->type;
+    Type *b = be->rhs->type;
+    Operator op = be->op;
+
+    switch (op) {
+        default:
+            assert(0);
+            break;
+
+        case Operator_Add:
+            if (is_numeric_type(a) && is_numeric_type(b)) {
+                if (a == b) {
+                    expr_set_type(be, a);
+                } else {
+                    String a_str = string_from_type(a);
+                    String b_str = string_from_type(b);
+                    report_error(be, "mismatched types: expected '{}', found '{}'.", a_str, b_str);
+                    ast_poison(be);
+                }
+            } else {
+                if (is_integer_type(a) && is_pointer_type(b)) {
+                    expr_set_type(be, b);
+                } else if (is_pointer_type(a) && is_integer_type(b)) {
+                    expr_set_type(be, a);
+                } else if (is_pointer_type(a) && is_pointer_type(b)) {
+                    report_error(be, "cannot add two pointers.");
+                    ast_poison(be);
+                } else if (!is_numeric_type(a)) {
+                    String str = string_from_type(a);
+                    report_error(be->lhs, "invalid '{}' operand of type '{}'.", string_from_operator(op), str);
+                    ast_poison(be);
+                } else if (!is_numeric_type(b)) {
+                    String str = string_from_type(b);
+                    report_error(be->rhs, "invalid '{}' operand of type '{}'.", string_from_operator(op), str);
+                    ast_poison(be);
+                }
+            }
+            break;
+
+        case Operator_Sub:
+            if (is_numeric_type(a) && is_numeric_type(b)) {
+                if (a == b) {
+                    expr_set_type(be, a);
+                } else {
+                    String a_str = string_from_type(a);
+                    String b_str = string_from_type(b);
+                    report_error(be, "mismatched types: expected '{}', found '{}'.", a_str, b_str);
+                    ast_poison(be);
+                }
+            } else {
+                if (is_pointer_type(a) && is_pointer_type(b)) {
+                    if (types_assignable(a, b)) {
+                        expr_set_type(be, a);
+                    } else {
+                        String a_str = string_from_type(a);
+                        String b_str = string_from_type(b);
+                        report_error(be, "mismatched types: pointer subtraction expects pointers of the same type '{}', found '{}'.", a_str, b_str);
+                        ast_poison(be);
+                    }
+                } else if (is_pointer_type(a) && is_integer_type(b)) {
+                    expr_set_type(be, a);
+                } else if (is_integer_type(a) && is_pointer_type(b)) {
+                    report_error(be, "pointers can only be subtracted from other pointers.");
+                    ast_poison(be);
+                } else {
+                    if (!is_numeric_type(a)) {
+                        String str = string_from_type(a);
+                        report_error(be->lhs, "invalid operand of type '{}' in binary '{}'.", str, string_from_operator(op));
+                        ast_poison(be);
+                    }
+                    if (!is_numeric_type(b)) {
+                        String str = string_from_type(b);
+                        report_error(be->rhs, "invalid operand of type '{}' in binary '{}'.", str, string_from_operator(op));
+                        ast_poison(be);
+                    }
+                }
+            }
+            break;
+
+        case Operator_Mult:
+        case Operator_Div:
+        case Operator_Mod:
+            if (is_numeric_type(a) && is_numeric_type(b)) {
+                if (a == b) {
+                    expr_set_type(be, a);
+                } else {
+                    String a_str = string_from_type(a);
+                    String b_str = string_from_type(b);
+                    report_error(be, "mismatched types: expected '{}', found '{}'.", a_str, b_str);
+                    ast_poison(be);
+                }
+            } else {
+                if (!is_numeric_type(a)) {
+                    String str = string_from_type(a);
+                    report_error(be->lhs, "invalid operand of type '{}' in binary '{}'.", str, string_from_operator(op));
+                    ast_poison(be);
+                }
+                if (!is_numeric_type(b)) {
+                    String str = string_from_type(b);
+                    report_error(be->rhs, "invalid operand of type '{}' in binary '{}'.", str, string_from_operator(op));
+                    ast_poison(be);
+                }
+            }
+            break;
+
+        case Operator_Equal:
+        case Operator_NotEqual:
+            if (types_assignable(a, b)) {
+                expr_set_type(be, t_bool);
+            } else {
+                String a_str = string_from_type(a);
+                String b_str = string_from_type(b);
+                report_error(be, "operands are not the same type, '{}' '{}' '{}'.", a_str, string_from_operator(op), b_str);
+                ast_poison(be);
+            }
+            break;
+
+        case Operator_Less:
+        case Operator_Greater:
+        case Operator_LessEqual:
+        case Operator_GreaterEqual:
+            if (is_numeric_type(a) && is_numeric_type(b)) {
+                if (a == b) {
+                    expr_set_type(be, t_bool);
+                } else {
+                    String a_str = string_from_type(a);
+                    String b_str = string_from_type(b);
+                    report_error(be, "operands are not the same type, '{}' '{}' '{}'.", a_str, string_from_operator(op), b_str);
+                    ast_poison(be);
+                }
+            } else if (is_pointer_type(a) && is_pointer_type(b) && types_assignable(a, b)) {
+                expr_set_type(be, t_bool);
+            } else {
+                String a_str = string_from_type(a);
+                String b_str = string_from_type(b);
+                report_error(be, "operands are not the same type, '{}' '{}' '{}'.", a_str, string_from_operator(op), b_str);
+                ast_poison(be);
+            }
+            break;
+
+        case Operator_LeftShift:
+        case Operator_RightShift:
+            if (is_integer_type(a) && is_integer_type(b)) {
+                if (a == b) {
+                    expr_set_type(be, a);
+                } else {
+                    String a_str = string_from_type(a);
+                    String b_str = string_from_type(b);
+                    report_error(be, "mismatched types: expected '{}', found '{}'.", a_str, b_str);
+                    ast_poison(be);
+                }
+            } else {
+                if (!is_integer_type(a)) {
+                    String str = string_from_type(a);
+                    report_error(be->lhs, "'{}' expected integer type, found '{}'", string_from_operator(op), str);
+                    ast_poison(be);
+                }
+                if (!is_integer_type(b)) {
+                    String str = string_from_type(b);
+                    report_error(be->rhs, "'{}' expected integer type, found '{}'", string_from_operator(op), str);
+                    ast_poison(be);
+                }
+            }
+            break;
+
+        case Operator_Xor:
+        case Operator_BitwiseOr:
+        case Operator_BitwiseAnd:
+            if (is_integer_type(a) && is_integer_type(b)) {
+                if (a == b) {
+                    expr_set_type(be, a);
+                } else {
+                    String a_str = string_from_type(a);
+                    String b_str = string_from_type(b);
+                    report_error(be, "mismatched types: expected '{}', found '{}'.", a_str, b_str);
+                    ast_poison(be);
+                }
+            } else {
+                if (!is_integer_type(a)) {
+                    String str = string_from_type(a);
+                    report_error(be->lhs, "'{}' expected integer type, found '{}'", string_from_operator(op), str);
+                    ast_poison(be);
+                }
+                if (!is_integer_type(b)) {
+                    String str = string_from_type(b);
+                    report_error(be->rhs, "'{}' expected integer type, found '{}'", string_from_operator(op), str);
+                    ast_poison(be);
+                }
+            }
+            break;
+
+        case Operator_Or:
+        case Operator_And:
+            if (is_bool_like_type(a) && is_bool_like_type(b)) {
+                expr_set_type(be, t_bool);
+            } else {
+                if (!is_bool_like_type(a)) {
+                    String str = string_from_type(a);
+                    report_error(be->lhs, "expected type coercible too bool, found '{}'.", str);
+                    ast_poison(be);
+                }
+                if (!is_bool_like_type(b)) {
+                    String str = string_from_type(b);
+                    report_error(be->rhs, "expected type coercible too bool, found '{}'.", str);
+                    ast_poison(be);
+                }
+            }
+            break;
+    }
 }
 
 Decl *decl_field_create(Scope *scope, Atom *name, Type *type) {
@@ -765,17 +965,31 @@ void resolve_compound_literal(Resolver *R, CompoundLiteralExpr *comp) {
     comp->type = comp->operand->type;
 }
 
+bool resolve_condition(Resolver *R, Ast *condition) {
+    resolve_expr(R, condition);
+
+    if (!is_bool_like_type(condition->type)) {
+        String str = string_from_type(condition->type);
+        report_error(condition, "bad condition: type '{}' is not coercible to bool.", str);
+        return false;
+    }
+
+    return true;
+}
+
 void resolve_if_expr(Resolver *R, IfExpr *if_expr) {
     Ast *condition = if_expr->condition;
+
     if (condition) {
-        resolve_expr(R, condition);
+        if (!resolve_condition(R, condition)) {
+            ast_poison(if_expr);
+        }
     }
 
     Ast *then = if_expr->then_expr;
     IfExpr *elif = if_expr->else_if;
 
     resolve_expr(R, then);
-
 
     if_expr->mode = then->mode;
     if_expr->type = then->type;
@@ -798,7 +1012,12 @@ void resolve_if_expr(Resolver *R, IfExpr *if_expr) {
 void resolve_ifcase_expr(Resolver *R, IfCaseExpr *ifcase_expr) {
     resolve_expr(R, ifcase_expr->condition);
 
+    Scope *scope = scope_create(R->scope, ifcase_expr);
+    R->scope = scope;
+
     resolve_expr(R, ifcase_expr->block);
+
+    R->scope = scope->parent;
 }
 
 void resolve_star_expr(Resolver *R, StarExpr *star, bool is_type) {
@@ -837,7 +1056,7 @@ void resolve_deref_expr(Resolver *R, DerefExpr *deref) {
     resolve_expr(R, operand);
 
     if (is_pointer_type(operand->type)) {
-        deref->mode = AddressingMode_Value;
+        deref->mode = AddressingMode_Variable;
         deref->type = deref_type(operand->type);
     } else {
         String op_type_string = string_from_type(operand->type);
@@ -856,7 +1075,7 @@ void resolve_cast_expr(Resolver *R, CastExpr *cast_expr) {
         String op_type = string_from_type(cast_expr->operand->type);
         String conv_type = string_from_type(cast_expr->conversion_type->type);
         report_error(cast_expr, "cannot cast '{}' to '{}", op_type, conv_type);
-        cast_expr->type = t_invalid;
+        ast_poison(cast_expr);
     }
 }
 
@@ -965,6 +1184,8 @@ void resolve_type(Resolver *R, Ast *expr) {
             break;
         case Ast_Ident:
             resolve_name(R, (Ident *)expr);
+            if (expr->mode == AddressingMode_Invalid) break;
+
             if (expr->mode != AddressingMode_Type) {
                 report_error(expr, "expected a type");
             }
@@ -1197,7 +1418,7 @@ void resolve_value_decl(Resolver *R, ValueDecl *vd, bool is_global) {
 
 void resolve_assign_stmt(Resolver *R, AssignStmt *assign) {
     for (Ast *lhs : assign->lhs) {
-        resolve_expr_base(R, lhs);
+        resolve_expr(R, lhs);
 
         if (lhs->mode != AddressingMode_Variable) {
             report_error(lhs, "cannot assign, not an l-value");
@@ -1205,7 +1426,7 @@ void resolve_assign_stmt(Resolver *R, AssignStmt *assign) {
     }
 
     for (Ast *rhs : assign->rhs) {
-        resolve_expr_base(R, rhs);
+        resolve_expr(R, rhs);
     }
 
     int value_count = type_arity(assign->rhs);
@@ -1249,16 +1470,16 @@ void resolve_break_stmt(Resolver *R, BreakStmt *break_stmt) {
     }
 
     Scope *scope = R->scope;
-    Ast *control = find_control_target(scope, Ast_Break);
+    Ast *control = find_control_target(scope, AstFlag_Loopy|AstFlag_Casey);
 
     if (control == nullptr) {
-        report_error(break_stmt, "illegal break outside of a loop");
+        report_error(break_stmt, "illegal break outside of a loop or ifcase");
     }
 }
 
 void resolve_continue_stmt(Resolver *R, ContinueStmt *cont_stmt) {
     Scope *scope = R->scope;
-    Ast *control = find_control_target(scope, Ast_Continue);
+    Ast *control = find_control_target(scope, AstFlag_Loopy);
 
     if (control == nullptr) {
         report_error(cont_stmt, "illegal continue outside of a loop");
@@ -1267,7 +1488,7 @@ void resolve_continue_stmt(Resolver *R, ContinueStmt *cont_stmt) {
 
 void resolve_fallthrough_stmt(Resolver *R, FallthroughStmt *fallthrough_stmt) {
     Scope *scope = R->scope;
-    Ast *control = find_control_target(scope, Ast_Fallthrough);
+    Ast *control = find_control_target(scope, AstFlag_Casey);
 
     if (control == nullptr) {
         report_error(fallthrough_stmt, "illegal fallthrough outside of an ifcase");
@@ -1276,7 +1497,7 @@ void resolve_fallthrough_stmt(Resolver *R, FallthroughStmt *fallthrough_stmt) {
 
 void resolve_return_stmt(Resolver *R, ReturnStmt *return_stmt) {
     Scope *scope = R->scope;
-    Ast *control = find_control_target(scope, Ast_Return);
+    Ast *control = find_control_target(scope, AstFlag_Procedure);
 
     if (control == nullptr) {
         report_error(return_stmt, "illegal return outside of a procedure");
@@ -1314,8 +1535,11 @@ void resolve_for_stmt(Resolver *R, ForStmt *for_stmt) {
         resolve_stmt(R, for_stmt->init);
     }
 
-    if (for_stmt->condition) {
-        resolve_expr(R, for_stmt->condition);
+    Ast *condition = for_stmt->condition;
+    if (condition) {
+        if (!resolve_condition(R, condition)) {
+            ast_poison(for_stmt);
+        }
     }
 
     if (for_stmt->post) {
@@ -1330,6 +1554,13 @@ void resolve_for_stmt(Resolver *R, ForStmt *for_stmt) {
 void resolve_case_expr(Resolver *R, CaseExpr *case_expr) {
     if (case_expr->operand) {
         resolve_expr_base(R, case_expr->operand);
+    }
+
+    IfCaseExpr *ifcase = static_cast<IfCaseExpr *>(find_control_target(R->scope, AstFlag_Casey));
+
+    if (ifcase == nullptr) {
+        report_error(case_expr, "illegal case clause: no enclosed ifcase.");
+        return;
     }
 
     Scope *scope = scope_create(R->scope, case_expr);
@@ -1347,6 +1578,7 @@ void resolve_stmt(Resolver *R, Ast *stmt) {
 
     switch (stmt->kind) {
         default:
+            ast_print(stmt);
             assert(0);
             break;
 
@@ -1459,5 +1691,4 @@ void resolve_program(Resolver *R, Parser *P) {
             resolve_top_level_stmt(R, stmt);
         }
     }
-
 }
